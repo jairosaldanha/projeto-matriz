@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import React from "react";
-import FileInput from "./FileInput"; // Importando o novo componente
+import ProjectAttachments from "./ProjectAttachments"; // Importando o novo componente
 
 // Helper component for a standard form field group
 interface FormFieldProps {
@@ -36,6 +36,12 @@ const ProjectForm = () => {
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <h1 className="text-3xl font-bold mb-6 text-center">Formulário de Proposta de Projeto de PD&I</h1>
+      
+      {/* Seção de Anexos no topo */}
+      <div className="mb-8">
+        <ProjectAttachments />
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-8">
         
         {/* 1. INTRODUÇÃO */}
@@ -98,20 +104,13 @@ const ProjectForm = () => {
               label="2.3. Descrição das atividades que compõem o projeto"
               placeholder="Descreva as atividades."
             />
-            <FileInput
-              id="quadro1-2"
-              label="Anexar Quadros 1 e 2 (Visão geral das etapas e Cronograma de execução)"
-              multiple
-            />
+            {/* Quadros 1 e 2 movidos para ProjectAttachments */}
             <FormField
               id="entregas-cronograma"
               label="2.4. Entregas previstas e cronograma físico"
               placeholder="Descreva as entregas e o cronograma físico."
             />
-            <FileInput
-              id="quadro3"
-              label="Anexar Quadro 3 (Cronograma físico associado às entregas)"
-            />
+            {/* Quadro 3 movido para ProjectAttachments */}
           </CardContent>
         </Card>
 
@@ -126,10 +125,7 @@ const ProjectForm = () => {
               label="3.1. Histórico da empresa"
               placeholder="Descreva o histórico da empresa."
             />
-            <FileInput
-              id="quadro4"
-              label="Anexar Quadro 4 (Participação da empresa em editais / programas de inovação)"
-            />
+            {/* Quadro 4 movido para ProjectAttachments */}
             <FormField
               id="informacoes-administrativas"
               label="3.2. Informações administrativas e de estrutura"
@@ -140,10 +136,7 @@ const ProjectForm = () => {
               label="3.3. Informações comerciais"
               placeholder="Descreva as informações comerciais."
             />
-            <FileInput
-              id="quadro5"
-              label="Anexar Quadro 5 (Produtos e serviços atuais da empresa)"
-            />
+            {/* Quadro 5 movido para ProjectAttachments */}
             <FormField
               id="infraestrutura-pdi"
               label="3.4. Informações sobre infraestrutura e atividades em PD&I"
@@ -154,10 +147,7 @@ const ProjectForm = () => {
               label="3.5. Acervo de propriedade intelectual e transferência de tecnologia da empresa (se houver)"
               placeholder="Descreva o acervo de PI."
             />
-            <FileInput
-              id="quadro6"
-              label="Anexar Quadro 6 (Acervo de propriedade intelectual da empresa)"
-            />
+            {/* Quadro 6 movido para ProjectAttachments */}
             <FormField
               id="patentes-terceiros"
               label="3.6. Patentes / ativos de PI de terceiros relacionados ao projeto (se houver)"
@@ -168,19 +158,13 @@ const ProjectForm = () => {
               label="3.7. Novos produtos/processos pretendidos pela empresa"
               placeholder="Descreva os novos produtos/processos."
             />
-            <FileInput
-              id="quadro7"
-              label="Anexar Quadro 7 (Novos produtos pretendidos como fonte de geração de receitas)"
-            />
+            {/* Quadro 7 movido para ProjectAttachments */}
             <FormField
               id="principais-competidores"
               label="3.8. Principais competidores nacionais e internacionais"
               placeholder="Liste e descreva os principais competidores."
             />
-            <FileInput
-              id="quadro8"
-              label="Anexar Quadro 8 (Matriz com atributos & benefícios das soluções concorrentes)"
-            />
+            {/* Quadro 8 movido para ProjectAttachments */}
             <FormField
               id="contrapartida-fundos"
               label="3.9. Contrapartida e busca de outros fundos"
@@ -212,10 +196,7 @@ const ProjectForm = () => {
               label="4.3. Equipe de trabalho"
               placeholder="Descreva a equipe de trabalho."
             />
-            <FileInput
-              id="quadro9"
-              label="Anexar Quadro 9 (Resumo da equipe de trabalho)"
-            />
+            {/* Quadro 9 movido para ProjectAttachments */}
           </CardContent>
         </Card>
 
@@ -244,10 +225,7 @@ const ProjectForm = () => {
               label="Quadro 10 – Proposta de orçamento do projeto"
               placeholder="Descreva a proposta de orçamento. (Em um formulário real, isso seria uma tabela, mas aqui usamos um campo de texto para a descrição geral.)"
             />
-            <FileInput
-              id="quadro10"
-              label="Anexar Quadro 10 (Proposta de orçamento detalhada)"
-            />
+            {/* Quadro 10 movido para ProjectAttachments */}
             <Separator />
             <Label className="text-base font-semibold block">Justificativas de:</Label>
             <FormField
