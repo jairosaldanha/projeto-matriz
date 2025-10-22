@@ -12,6 +12,9 @@ import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast";
 
+// Nome do bucket de arquivos temporários
+const ATTACHMENTS_BUCKET = "project-uploads";
+
 // 1. Definindo o Schema Zod para o formulário
 const projectSchema = z.object({
   // 1. INTRODUÇÃO
@@ -54,8 +57,8 @@ const projectSchema = z.object({
   // 7. REFERÊNCIAS
   referencias: z.string().min(1, "Campo obrigatório"),
 
-  // Anexos (não persistimos diretamente, mas precisamos do campo para o RHF)
-  anexos: z.any().optional(),
+  // Anexos (FileList ou null)
+  anexos: z.instanceof(FileList).optional().nullable(),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -129,36 +132,96 @@ const ProjectForm = () => {
       justificativa_equipamentos: "",
       justificativa_servicos: "",
       referencias: "",
+      anexos: null,
     }
   });
+
+  const uploadFiles = async (projectId: string, userId: string, files: FileList) => {
+    const attachmentRecords = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileExtension = file.name.split('.').pop();
+      const storagePath = `${userId}/${projectId}/${Date.now()}-${file.name}`;
+
+      // 1. Upload para o Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(ATTACHMENTS_BUCKET)
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(`Falha no upload do arquivo ${file.name}: ${uploadError.message}`);
+      }
+
+      // 2. Preparar registro para o banco de dados
+      attachmentRecords.push({
+        project_id: projectId,
+        user_id: userId,
+        file_name: file.name,
+        storage_path: uploadData.path,
+        mime_type: file.type,
+        size_bytes: file.size,
+      });
+    }
+
+    // 3. Inserir metadados no banco de dados
+    if (attachmentRecords.length > 0) {
+      const { error: metadataError } = await supabase
+        .from('project_attachments')
+        .insert(attachmentRecords);
+
+      if (metadataError) {
+        throw new Error(`Falha ao salvar metadados dos anexos: ${metadataError.message}`);
+      }
+    }
+  };
 
   const onSubmit = async (data: ProjectFormData) => {
     const toastId = showLoading("Enviando proposta...");
     
-    // Remove o campo 'anexos' antes de inserir no DB, pois ele não é uma coluna
     const { anexos, ...projectData } = data;
 
     try {
-      // 1. Inserir dados do projeto
-      const { error: dbError } = await supabase
-        .from('projects')
-        .insert([projectData]);
-
-      if (dbError) {
-        throw new Error(dbError.message);
+      // 0. Verificar autenticação
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        dismissToast(toastId);
+        showError("Você precisa estar logado para enviar uma proposta.");
+        return;
       }
+      const userId = user.id;
 
-      // 2. Lógica de upload de arquivos (Ainda não implementada, mas o campo está aqui)
-      // Se houver arquivos, a lógica de upload para o Storage viria aqui.
+      // 1. Inserir dados do projeto (incluindo user_id)
+      const projectToInsert = { ...projectData, user_id: userId };
+      
+      const { data: insertedProject, error: dbError } = await supabase
+        .from('projects')
+        .insert([projectToInsert])
+        .select('id')
+        .single();
+
+      if (dbError || !insertedProject) {
+        throw new Error(dbError?.message || "Falha ao obter ID do projeto inserido.");
+      }
+      
+      const projectId = insertedProject.id;
+
+      // 2. Upload de arquivos, se existirem
+      if (anexos && anexos.length > 0) {
+        await uploadFiles(projectId, userId, anexos);
+      }
       
       dismissToast(toastId);
-      showSuccess("Proposta enviada com sucesso!");
+      showSuccess("Proposta e anexos enviados com sucesso!");
       reset(); // Limpa o formulário após o sucesso
 
     } catch (error) {
       console.error("Erro ao submeter projeto:", error);
       dismissToast(toastId);
-      showError("Falha ao enviar a proposta. Tente novamente.");
+      showError(`Falha ao enviar a proposta: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   };
 
