@@ -141,8 +141,8 @@ const ProjectForm = () => {
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const fileExtension = file.name.split('.').pop();
-      const storagePath = `${userId}/${projectId}/${Date.now()}-${file.name}`;
+      // O caminho de armazenamento agora inclui o prefixo 'temp/'
+      const storagePath = `temp/${userId}/${projectId}/${Date.now()}-${file.name}`;
 
       // 1. Upload para o Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
