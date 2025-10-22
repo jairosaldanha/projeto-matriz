@@ -3,34 +3,163 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import React from "react";
-import ProjectAttachments from "./ProjectAttachments"; // Importando o novo componente
+import ProjectAttachments from "./ProjectAttachments";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { supabase } from "@/integrations/supabase/client";
+import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast";
+
+// 1. Definindo o Schema Zod para o formulário
+const projectSchema = z.object({
+  // 1. INTRODUÇÃO
+  contextualizacao: z.string().min(1, "Campo obrigatório"),
+  objetivo_geral: z.string().min(1, "Campo obrigatório"),
+  objetivos_especificos: z.string().min(1, "Campo obrigatório"),
+  justificativa: z.string().min(1, "Campo obrigatório"),
+  estagio_atual: z.string().min(1, "Campo obrigatório"),
+  
+  // 2. PLANO DO PROJETO
+  fundamentacao_teorica: z.string().min(1, "Campo obrigatório"),
+  metodologia: z.string().min(1, "Campo obrigatório"),
+  descricao_atividades: z.string().min(1, "Campo obrigatório"),
+  entregas_cronograma: z.string().min(1, "Campo obrigatório"),
+  
+  // 3. INFORMAÇÕES SOBRE A EMPRESA
+  historico_empresa: z.string().min(1, "Campo obrigatório"),
+  informacoes_administrativas: z.string().min(1, "Campo obrigatório"),
+  informacoes_comerciais: z.string().min(1, "Campo obrigatório"),
+  infraestrutura_pdi: z.string().min(1, "Campo obrigatório"),
+  acervo_pi: z.string().optional(),
+  patentes_terceiros: z.string().optional(),
+  novos_produtos: z.string().min(1, "Campo obrigatório"),
+  principais_competidores: z.string().min(1, "Campo obrigatório"),
+  contrapartida_fundos: z.string().min(1, "Campo obrigatório"),
+  
+  // 4. DESCRIÇÃO DA EQUIPE
+  responsavel_legal: z.string().min(1, "Campo obrigatório"),
+  coordenador_tecnico: z.string().min(1, "Campo obrigatório"),
+  equipe_trabalho: z.string().min(1, "Campo obrigatório"),
+  
+  // 5. POTENCIAL COMERCIAL
+  potencial_comercial: z.string().min(1, "Campo obrigatório"),
+  
+  // 6. ORÇAMENTO
+  proposta_orcamento: z.string().min(1, "Campo obrigatório"),
+  justificativa_equipamentos: z.string().min(1, "Campo obrigatório"),
+  justificativa_servicos: z.string().min(1, "Campo obrigatório"),
+  
+  // 7. REFERÊNCIAS
+  referencias: z.string().min(1, "Campo obrigatório"),
+
+  // Anexos (não persistimos diretamente, mas precisamos do campo para o RHF)
+  anexos: z.any().optional(),
+});
+
+type ProjectFormData = z.infer<typeof projectSchema>;
 
 // Helper component for a standard form field group
 interface FormFieldProps {
-  id: string;
+  name: keyof ProjectFormData;
   label: string;
   placeholder: string;
   isTextArea?: boolean;
+  control: any;
+  error: string | undefined;
 }
 
-const FormField: React.FC<FormFieldProps> = ({ id, label, placeholder, isTextArea = true }) => (
+const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextArea = true, control, error }) => (
   <div className="space-y-2">
-    <Label htmlFor={id}>{label}</Label>
-    {isTextArea ? (
-      <Textarea id={id} placeholder={placeholder} rows={4} />
-    ) : (
-      <input id={id} placeholder={placeholder} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" />
-    )}
+    <Label htmlFor={name}>{label}</Label>
+    <Controller
+      name={name}
+      control={control}
+      render={({ field }) => (
+        isTextArea ? (
+          <Textarea 
+            id={name} 
+            placeholder={placeholder} 
+            rows={4} 
+            {...field} 
+            value={field.value || ""}
+          />
+        ) : (
+          <Input 
+            id={name} 
+            placeholder={placeholder} 
+            {...field} 
+            value={field.value || ""}
+          />
+        )
+      )}
+    />
+    {error && <p className="text-sm text-destructive">{error}</p>}
   </div>
 );
 
 const ProjectForm = () => {
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Lógica de submissão do formulário
-    console.log("Formulário submetido!");
-    // Aqui você pode adicionar a lógica para coletar os dados dos campos
+  const { control, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProjectFormData>({
+    resolver: zodResolver(projectSchema),
+    defaultValues: {
+      contextualizacao: "",
+      objetivo_geral: "",
+      objetivos_especificos: "",
+      justificativa: "",
+      estagio_atual: "",
+      fundamentacao_teorica: "",
+      metodologia: "",
+      descricao_atividades: "",
+      entregas_cronograma: "",
+      historico_empresa: "",
+      informacoes_administrativas: "",
+      informacoes_comerciais: "",
+      infraestrutura_pdi: "",
+      acervo_pi: "",
+      patentes_terceiros: "",
+      novos_produtos: "",
+      principais_competidores: "",
+      contrapartida_fundos: "",
+      responsavel_legal: "",
+      coordenador_tecnico: "",
+      equipe_trabalho: "",
+      potencial_comercial: "",
+      proposta_orcamento: "",
+      justificativa_equipamentos: "",
+      justificativa_servicos: "",
+      referencias: "",
+    }
+  });
+
+  const onSubmit = async (data: ProjectFormData) => {
+    const toastId = showLoading("Enviando proposta...");
+    
+    // Remove o campo 'anexos' antes de inserir no DB, pois ele não é uma coluna
+    const { anexos, ...projectData } = data;
+
+    try {
+      // 1. Inserir dados do projeto
+      const { error: dbError } = await supabase
+        .from('projects')
+        .insert([projectData]);
+
+      if (dbError) {
+        throw new Error(dbError.message);
+      }
+
+      // 2. Lógica de upload de arquivos (Ainda não implementada, mas o campo está aqui)
+      // Se houver arquivos, a lógica de upload para o Storage viria aqui.
+      
+      dismissToast(toastId);
+      showSuccess("Proposta enviada com sucesso!");
+      reset(); // Limpa o formulário após o sucesso
+
+    } catch (error) {
+      console.error("Erro ao submeter projeto:", error);
+      dismissToast(toastId);
+      showError("Falha ao enviar a proposta. Tente novamente.");
+    }
   };
 
   return (
@@ -39,10 +168,10 @@ const ProjectForm = () => {
       
       {/* Seção de Anexos no topo */}
       <div className="mb-8">
-        <ProjectAttachments />
+        <ProjectAttachments control={control} error={errors.anexos?.message} />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         
         {/* 1. INTRODUÇÃO */}
         <Card>
@@ -51,34 +180,44 @@ const ProjectForm = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
-              id="contextualizacao"
+              name="contextualizacao"
               label="1.1. Contextualização e benefícios pretendidos"
               placeholder="Descreva o contexto e os benefícios esperados do projeto."
+              control={control}
+              error={errors.contextualizacao?.message}
             />
             
             <div className="space-y-4">
               <Label className="text-base font-semibold block">1.2. Objetivos</Label>
               <FormField
-                id="objetivo-geral"
+                name="objetivo_geral"
                 label="1.2.1. Objetivo geral"
                 placeholder="Defina o objetivo geral do projeto."
+                control={control}
+                error={errors.objetivo_geral?.message}
               />
               <FormField
-                id="objetivos-especificos"
+                name="objetivos_especificos"
                 label="1.2.2. Objetivos específicos"
                 placeholder="Liste os objetivos específicos do projeto."
+                control={control}
+                error={errors.objetivos_especificos?.message}
               />
             </div>
 
             <FormField
-              id="justificativa"
+              name="justificativa"
               label="1.3. Justificativa"
               placeholder="Apresente a justificativa para a realização deste projeto."
+              control={control}
+              error={errors.justificativa?.message}
             />
             <FormField
-              id="estagio-atual"
+              name="estagio_atual"
               label="1.4. Estágio atual de desenvolvimento do produto e/ou processo inovador objeto do projeto"
               placeholder="Descreva o estágio atual de desenvolvimento (ex: TRL)."
+              control={control}
+              error={errors.estagio_atual?.message}
             />
           </CardContent>
         </Card>
@@ -90,27 +229,33 @@ const ProjectForm = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
-              id="fundamentacao-teorica"
+              name="fundamentacao_teorica"
               label="2.1. Fundamentação teórica"
               placeholder="Apresente a fundamentação teórica que suporta o projeto."
+              control={control}
+              error={errors.fundamentacao_teorica?.message}
             />
             <FormField
-              id="metodologia"
+              name="metodologia"
               label="2.2. Metodologia"
               placeholder="Descreva a metodologia a ser empregada."
+              control={control}
+              error={errors.metodologia?.message}
             />
             <FormField
-              id="descricao-atividades"
+              name="descricao_atividades"
               label="2.3. Descrição das atividades que compõem o projeto"
               placeholder="Descreva as atividades."
+              control={control}
+              error={errors.descricao_atividades?.message}
             />
-            {/* Quadros 1 e 2 movidos para ProjectAttachments */}
             <FormField
-              id="entregas-cronograma"
+              name="entregas_cronograma"
               label="2.4. Entregas previstas e cronograma físico"
               placeholder="Descreva as entregas e o cronograma físico."
+              control={control}
+              error={errors.entregas_cronograma?.message}
             />
-            {/* Quadro 3 movido para ProjectAttachments */}
           </CardContent>
         </Card>
 
@@ -121,54 +266,67 @@ const ProjectForm = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
-              id="historico-empresa"
+              name="historico_empresa"
               label="3.1. Histórico da empresa"
               placeholder="Descreva o histórico da empresa."
+              control={control}
+              error={errors.historico_empresa?.message}
             />
-            {/* Quadro 4 movido para ProjectAttachments */}
             <FormField
-              id="informacoes-administrativas"
+              name="informacoes_administrativas"
               label="3.2. Informações administrativas e de estrutura"
               placeholder="Detalhe a estrutura administrativa e organizacional."
+              control={control}
+              error={errors.informacoes_administrativas?.message}
             />
             <FormField
-              id="informacoes-comerciais"
+              name="informacoes_comerciais"
               label="3.3. Informações comerciais"
               placeholder="Descreva as informações comerciais."
+              control={control}
+              error={errors.informacoes_comerciais?.message}
             />
-            {/* Quadro 5 movido para ProjectAttachments */}
             <FormField
-              id="infraestrutura-pdi"
+              name="infraestrutura_pdi"
               label="3.4. Informações sobre infraestrutura e atividades em PD&I"
               placeholder="Descreva a infraestrutura disponível e as atividades de PD&I realizadas."
+              control={control}
+              error={errors.infraestrutura_pdi?.message}
             />
             <FormField
-              id="acervo-pi"
+              name="acervo_pi"
               label="3.5. Acervo de propriedade intelectual e transferência de tecnologia da empresa (se houver)"
               placeholder="Descreva o acervo de PI."
+              control={control}
+              error={errors.acervo_pi?.message}
             />
-            {/* Quadro 6 movido para ProjectAttachments */}
             <FormField
-              id="patentes-terceiros"
+              name="patentes_terceiros"
               label="3.6. Patentes / ativos de PI de terceiros relacionados ao projeto (se houver)"
               placeholder="Liste patentes ou ativos de terceiros relevantes."
+              control={control}
+              error={errors.patentes_terceiros?.message}
             />
             <FormField
-              id="novos-produtos"
+              name="novos_produtos"
               label="3.7. Novos produtos/processos pretendidos pela empresa"
               placeholder="Descreva os novos produtos/processos."
+              control={control}
+              error={errors.novos_produtos?.message}
             />
-            {/* Quadro 7 movido para ProjectAttachments */}
             <FormField
-              id="principais-competidores"
+              name="principais_competidores"
               label="3.8. Principais competidores nacionais e internacionais"
               placeholder="Liste e descreva os principais competidores."
+              control={control}
+              error={errors.principais_competidores?.message}
             />
-            {/* Quadro 8 movido para ProjectAttachments */}
             <FormField
-              id="contrapartida-fundos"
+              name="contrapartida_fundos"
               label="3.9. Contrapartida e busca de outros fundos"
               placeholder="Descreva a contrapartida e a busca por outros fundos."
+              control={control}
+              error={errors.contrapartida_fundos?.message}
             />
           </CardContent>
         </Card>
@@ -180,23 +338,28 @@ const ProjectForm = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
-              id="responsavel-legal"
+              name="responsavel_legal"
               label="4.1. Responsável legal"
               placeholder="Nome e informações do responsável legal."
               isTextArea={false}
+              control={control}
+              error={errors.responsavel_legal?.message}
             />
             <FormField
-              id="coordenador-tecnico"
+              name="coordenador_tecnico"
               label="4.2. Coordenador(a) técnico(a)"
               placeholder="Nome e informações do coordenador técnico."
               isTextArea={false}
+              control={control}
+              error={errors.coordenador_tecnico?.message}
             />
             <FormField
-              id="equipe-trabalho"
+              name="equipe_trabalho"
               label="4.3. Equipe de trabalho"
               placeholder="Descreva a equipe de trabalho."
+              control={control}
+              error={errors.equipe_trabalho?.message}
             />
-            {/* Quadro 9 movido para ProjectAttachments */}
           </CardContent>
         </Card>
 
@@ -207,9 +370,11 @@ const ProjectForm = () => {
           </CardHeader>
           <CardContent>
             <FormField
-              id="potencial-comercial"
+              name="potencial_comercial"
               label="Descrição do Potencial Comercial"
               placeholder="Detalhe o potencial de mercado, público-alvo e estratégia de comercialização."
+              control={control}
+              error={errors.potencial_comercial?.message}
             />
           </CardContent>
         </Card>
@@ -221,22 +386,27 @@ const ProjectForm = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
-              id="proposta-orcamento"
+              name="proposta_orcamento"
               label="Quadro 10 – Proposta de orçamento do projeto"
               placeholder="Descreva a proposta de orçamento. (Em um formulário real, isso seria uma tabela, mas aqui usamos um campo de texto para a descrição geral.)"
+              control={control}
+              error={errors.proposta_orcamento?.message}
             />
-            {/* Quadro 10 movido para ProjectAttachments */}
             <Separator />
             <Label className="text-base font-semibold block">Justificativas de:</Label>
             <FormField
-              id="justificativa-equipamentos"
+              name="justificativa_equipamentos"
               label="1. Equipamentos e materiais permanentes"
               placeholder="Justifique a necessidade de equipamentos e materiais permanentes."
+              control={control}
+              error={errors.justificativa_equipamentos?.message}
             />
             <FormField
-              id="justificativa-servicos"
+              name="justificativa_servicos"
               label="2. Serviços de terceiros (incluindo consultorias)"
               placeholder="Justifique a necessidade de serviços de terceiros e consultorias."
+              control={control}
+              error={errors.justificativa_servicos?.message}
             />
           </CardContent>
         </Card>
@@ -248,16 +418,18 @@ const ProjectForm = () => {
           </CardHeader>
           <CardContent>
             <FormField
-              id="referencias"
+              name="referencias"
               label="Referências Bibliográficas"
               placeholder="Liste todas as referências utilizadas no projeto."
+              control={control}
+              error={errors.referencias?.message}
             />
           </CardContent>
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" className="w-full sm:w-auto">
-            Enviar Proposta
+          <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
+            {isSubmitting ? "Enviando..." : "Enviar Proposta"}
           </Button>
         </div>
       </form>

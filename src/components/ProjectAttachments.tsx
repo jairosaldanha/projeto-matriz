@@ -1,8 +1,14 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import FileInput from "./FileInput";
+import { Control, Controller } from "react-hook-form";
 
-const ProjectAttachments: React.FC = () => {
+interface ProjectAttachmentsProps {
+  control: Control<any>;
+  error: string | undefined;
+}
+
+const ProjectAttachments: React.FC<ProjectAttachmentsProps> = ({ control, error }) => {
   return (
     <Card>
       <CardHeader>
@@ -13,11 +19,19 @@ const ProjectAttachments: React.FC = () => {
           Por favor, anexe todos os documentos e quadros solicitados (Quadros 1 a 10, se aplicável). Você pode selecionar múltiplos arquivos de uma vez.
         </p>
         
-        <FileInput
-          id="todos-anexos"
-          label="Anexar todos os Quadros e Documentos"
-          multiple
+        <Controller
+          name="anexos"
+          control={control}
+          render={({ field }) => (
+            <FileInput
+              id="todos-anexos"
+              label="Anexar todos os Quadros e Documentos"
+              multiple
+              field={field}
+            />
+          )}
         />
+        {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>
     </Card>
   );
