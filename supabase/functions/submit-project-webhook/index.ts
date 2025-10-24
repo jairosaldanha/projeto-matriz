@@ -19,9 +19,10 @@ serve(async (req) => {
   }
 
   // 1. Inicializar o cliente Supabase (usando a chave de serviço para acesso seguro ao DB)
+  // CORREÇÃO: Usando o operador '!' para garantir que as variáveis de ambiente são strings.
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, // Usamos a chave de serviço para ignorar RLS e garantir a leitura dos dados
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, 
     {
       auth: {
         autoRefreshToken: false,
