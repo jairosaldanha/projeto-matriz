@@ -213,6 +213,28 @@ const ProjectForm = () => {
     }
   }, [getValues, saveProjectData]);
   
+  // Função para chamar a Edge Function do Webhook
+  const callWebhook = async (projectId: string, userId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('submit-project-webhook', {
+        body: { project_id: projectId, user_id: userId },
+      });
+
+      if (error) {
+        console.error("Erro ao chamar Edge Function:", error);
+        showError("Erro ao notificar o sistema de automação (n8n).");
+        return false;
+      }
+      
+      console.log("Edge Function response:", data);
+      return true;
+    } catch (e) {
+      console.error("Erro inesperado ao chamar Edge Function:", e);
+      showError("Erro inesperado ao notificar o sistema de automação.");
+      return false;
+    }
+  };
+  
   // Função de submissão final (usa validação Zod)
   const onSubmit = async (data: ProjectFormData) => {
     const action = projectId ? "Atualizando" : "Enviando";
@@ -222,6 +244,10 @@ const ProjectForm = () => {
       // 1. Salvar/Atualizar dados do projeto (com todos os campos validados)
       const finalProjectId = await saveProjectData(data);
       
+      if (!finalProjectId || !userId) {
+        throw new Error("Falha ao obter ID do projeto ou usuário.");
+      }
+      
       // 2. Verificar se há anexos pendentes no FileInput
       if (data.anexos && data.anexos.length > 0) {
         dismissToast(toastId);
@@ -229,9 +255,17 @@ const ProjectForm = () => {
         return;
       }
       
-      // 3. Confirmação final
+      // 3. Chamar o Webhook (Edge Function)
+      const webhookSuccess = await callWebhook(finalProjectId, userId);
+      
+      // 4. Confirmação final
       dismissToast(toastId);
-      showSuccess(`Proposta ${projectId ? 'atualizada' : 'enviada'} com sucesso! ID do Projeto: ${finalProjectId}`);
+      
+      if (webhookSuccess) {
+        showSuccess(`Proposta ${projectId ? 'atualizada' : 'enviada'} com sucesso! O fluxo de automação foi iniciado.`);
+      } else {
+        showSuccess(`Proposta ${projectId ? 'atualizada' : 'enviada'} com sucesso! (Houve um problema na notificação do n8n, verifique os logs.)`);
+      }
 
     } catch (error) {
       console.error("Erro ao submeter projeto:", error);
