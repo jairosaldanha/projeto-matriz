@@ -12,7 +12,7 @@ import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal } from "lucide-react";
+import { Terminal, Loader2 } from "lucide-react";
 
 // 1. Definindo o Schema Zod para o formulário
 const projectSchema = z.object({
