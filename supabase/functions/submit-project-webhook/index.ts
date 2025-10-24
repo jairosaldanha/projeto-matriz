@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // URL base do seu webhook do n8n
-const N8N_WEBHOOK_BASE_URL = "https://n8n.braglam.com/webhook/9e3475c0-48f4-436a-992d-d0622a684b22";
+const N8N_WEBHOOK_URL = "https://n8n.braglam.com/webhook/9e3475c0-48f4-436a-992d-d0622a684b22";
 
 serve(async (req) => {
   console.log(`[Webhook] Request received: ${req.method}`);
@@ -59,24 +59,22 @@ serve(async (req) => {
       
     console.log(`[Webhook] Attachments found: ${nome_dos_arquivos}`);
 
-    // 3. Preparar os parâmetros de consulta para o n8n (GET request)
-    const params = new URLSearchParams({
+    // 3. Preparar o payload JSON para o n8n
+    const n8nPayload = {
       user_id: user_id,
       project_id: project_id,
       nome_dos_arquivos: nome_dos_arquivos,
-    });
+    };
     
-    const n8nUrl = `${N8N_WEBHOOK_BASE_URL}?${params.toString()}`;
-    
-    console.log("[Webhook] Sending GET request to n8n URL:", n8nUrl);
+    console.log("[Webhook] Sending POST request to n8n with payload:", JSON.stringify(n8nPayload));
 
-    // 4. Enviar para o webhook do n8n usando GET
-    const n8nResponse = await fetch(n8nUrl, {
-      method: "GET", // Alterado para GET
+    // 4. Enviar para o webhook do n8n usando POST
+    const n8nResponse = await fetch(N8N_WEBHOOK_URL, {
+      method: "POST", // Método POST
       headers: {
         "Content-Type": "application/json",
       },
-      // Não há 'body' em requisições GET
+      body: JSON.stringify(n8nPayload), // Envia o payload no corpo
     });
 
     if (!n8nResponse.ok) {
