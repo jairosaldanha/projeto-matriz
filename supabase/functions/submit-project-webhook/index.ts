@@ -10,6 +10,7 @@ const corsHeaders = {
 const N8N_WEBHOOK_URL = "https://n8n.braglam.com/webhook/9e3475c0-48f4-436a-992d-d0622a684b22";
 
 serve(async (req) => {
+  console.log(`[Webhook] Function started.`); // Log de inicialização
   console.log(`[Webhook] Request received: ${req.method}`);
   
   // Lidar com requisições OPTIONS (CORS)
