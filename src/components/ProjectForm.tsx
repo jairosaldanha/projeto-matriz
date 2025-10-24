@@ -4,33 +4,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import ProjectAttachments from "./ProjectAttachments";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast";
-
-// Nome do bucket de arquivos temporários
-const ATTACHMENTS_BUCKET = "project-uploads";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Terminal } from "lucide-react";
 
 // 1. Definindo o Schema Zod para o formulário
 const projectSchema = z.object({
-  // 1. INTRODUÇÃO
+  // ... (Campos do projeto permanecem os mesmos)
   contextualizacao: z.string().min(1, "Campo obrigatório"),
   objetivo_geral: z.string().min(1, "Campo obrigatório"),
   objetivos_especificos: z.string().min(1, "Campo obrigatório"),
   justificativa: z.string().min(1, "Campo obrigatório"),
   estagio_atual: z.string().min(1, "Campo obrigatório"),
   
-  // 2. PLANO DO PROJETO
   fundamentacao_teorica: z.string().min(1, "Campo obrigatório"),
   metodologia: z.string().min(1, "Campo obrigatório"),
   descricao_atividades: z.string().min(1, "Campo obrigatório"),
   entregas_cronograma: z.string().min(1, "Campo obrigatório"),
   
-  // 3. INFORMAÇÕES SOBRE A EMPRESA
   historico_empresa: z.string().min(1, "Campo obrigatório"),
   informacoes_administrativas: z.string().min(1, "Campo obrigatório"),
   informacoes_comerciais: z.string().min(1, "Campo obrigatório"),
@@ -41,23 +38,19 @@ const projectSchema = z.object({
   principais_competidores: z.string().min(1, "Campo obrigatório"),
   contrapartida_fundos: z.string().min(1, "Campo obrigatório"),
   
-  // 4. DESCRIÇÃO DA EQUIPE
   responsavel_legal: z.string().min(1, "Campo obrigatório"),
   coordenador_tecnico: z.string().min(1, "Campo obrigatório"),
   equipe_trabalho: z.string().min(1, "Campo obrigatório"),
   
-  // 5. POTENCIAL COMERCIAL
   potencial_comercial: z.string().min(1, "Campo obrigatório"),
   
-  // 6. ORÇAMENTO
   proposta_orcamento: z.string().min(1, "Campo obrigatório"),
   justificativa_equipamentos: z.string().min(1, "Campo obrigatório"),
   justificativa_servicos: z.string().min(1, "Campo obrigatório"),
   
-  // 7. REFERÊNCIAS
   referencias: z.string().min(1, "Campo obrigatório"),
 
-  // Anexos (FileList ou null)
+  // Anexos (FileList ou null) - Agora usado apenas para seleção temporária no FileInput
   anexos: z.instanceof(FileList).optional().nullable(),
 });
 
@@ -103,7 +96,12 @@ const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextA
 );
 
 const ProjectForm = () => {
-  const { control, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProjectFormData>({
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isProjectSaved, setIsProjectSaved] = useState(false);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+
+  const { control, handleSubmit, formState: { errors, isSubmitting }, reset, getValues } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
       contextualizacao: "",
@@ -132,71 +130,39 @@ const ProjectForm = () => {
       justificativa_equipamentos: "",
       justificativa_servicos: "",
       referencias: "",
-      anexos: null,
+      anexos: null, // Mantido para o FileInput, mas não será submetido ao DB
     }
   });
-
-  const uploadFiles = async (projectId: string, userId: string, files: FileList) => {
-    const attachmentRecords = [];
-    
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      // O caminho de armazenamento agora inclui o prefixo 'temp/'
-      const storagePath = `temp/${userId}/${projectId}/${Date.now()}-${file.name}`;
-
-      // 1. Upload para o Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from(ATTACHMENTS_BUCKET)
-        .upload(storagePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        throw new Error(`Falha no upload do arquivo ${file.name}: ${uploadError.message}`);
-      }
-
-      // 2. Preparar registro para o banco de dados
-      attachmentRecords.push({
-        project_id: projectId,
-        user_id: userId,
-        file_name: file.name,
-        storage_path: uploadData.path,
-        mime_type: file.type,
-        size_bytes: file.size,
-      });
-    }
-
-    // 3. Inserir metadados no banco de dados
-    if (attachmentRecords.length > 0) {
-      const { error: metadataError } = await supabase
-        .from('project_attachments')
-        .insert(attachmentRecords);
-
-      if (metadataError) {
-        throw new Error(`Falha ao salvar metadados dos anexos: ${metadataError.message}`);
-      }
-    }
-  };
-
-  const onSubmit = async (data: ProjectFormData) => {
-    const toastId = showLoading("Enviando proposta...");
-    
-    const { anexos, ...projectData } = data;
-
-    try {
-      // 0. Verificar autenticação
+  
+  // 0. Verificar autenticação e carregar ID do usuário
+  useEffect(() => {
+    const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        dismissToast(toastId);
-        showError("Você precisa estar logado para enviar uma proposta.");
-        return;
+      if (user) {
+        setUserId(user.id);
+      } else {
+        // TODO: Implementar redirecionamento para login
+        showError("Você precisa estar logado para preencher o formulário.");
       }
-      const userId = user.id;
+      setIsAuthChecked(true);
+    };
+    checkAuth();
+  }, []);
 
-      // 1. Inserir dados do projeto (incluindo user_id)
-      const projectToInsert = { ...projectData, user_id: userId };
-      
+  // Função para salvar/atualizar o projeto no banco de dados
+  const saveProjectData = async (data: ProjectFormData) => {
+    const { anexos, ...projectData } = data;
+    
+    if (!userId) {
+      throw new Error("Usuário não autenticado.");
+    }
+
+    const projectToInsert = { ...projectData, user_id: userId };
+    
+    let insertedId = projectId;
+    
+    if (!projectId) {
+      // Inserir novo projeto
       const { data: insertedProject, error: dbError } = await supabase
         .from('projects')
         .insert([projectToInsert])
@@ -204,34 +170,107 @@ const ProjectForm = () => {
         .single();
 
       if (dbError || !insertedProject) {
-        throw new Error(dbError?.message || "Falha ao obter ID do projeto inserido.");
+        throw new Error(dbError?.message || "Falha ao inserir novo projeto.");
       }
+      insertedId = insertedProject.id;
+      setProjectId(insertedId);
+      setIsProjectSaved(true);
       
-      const projectId = insertedProject.id;
+    } else {
+      // Atualizar projeto existente
+      const { error: dbError } = await supabase
+        .from('projects')
+        .update(projectToInsert)
+        .eq('id', projectId);
+        
+      if (dbError) {
+        throw new Error(dbError.message);
+      }
+    }
+    
+    return insertedId;
+  };
 
-      // 2. Upload de arquivos, se existirem
-      if (anexos && anexos.length > 0) {
-        await uploadFiles(projectId, userId, anexos);
+  const onSubmit = async (data: ProjectFormData) => {
+    const action = projectId ? "Atualizando" : "Enviando";
+    const toastId = showLoading(`${action} proposta...`);
+    
+    try {
+      // 1. Salvar/Atualizar dados do projeto (sem anexos)
+      const finalProjectId = await saveProjectData(data);
+      
+      // 2. Verificar se há anexos pendentes no FileInput (não deve haver se o usuário usou o botão de upload)
+      if (data.anexos && data.anexos.length > 0) {
+        dismissToast(toastId);
+        showError("Por favor, use o botão 'Enviar Arquivos' na seção de Anexos antes de finalizar a proposta.");
+        return;
       }
       
+      // 3. Confirmação final
       dismissToast(toastId);
-      showSuccess("Proposta e anexos enviados com sucesso!");
-      reset(); // Limpa o formulário após o sucesso
+      showSuccess(`Proposta ${projectId ? 'atualizada' : 'enviada'} com sucesso! ID do Projeto: ${finalProjectId}`);
+      
+      // Se for a primeira submissão, não resetamos para manter o ID. 
+      // Se fosse um formulário de submissão final, resetaríamos.
+      // Por enquanto, mantemos o estado para permitir atualizações.
+      if (!projectId) {
+        // Se for a primeira submissão, o ID já foi setado acima.
+      }
 
     } catch (error) {
       console.error("Erro ao submeter projeto:", error);
       dismissToast(toastId);
-      showError(`Falha ao enviar a proposta: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      showError(`Falha ao ${action.toLowerCase()} a proposta: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   };
+  
+  if (!isAuthChecked) {
+    return (
+      <div className="container mx-auto py-8 px-4 max-w-4xl text-center">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+        <p>Verificando autenticação...</p>
+      </div>
+    );
+  }
+  
+  if (!userId) {
+    return (
+      <div className="container mx-auto py-8 px-4 max-w-4xl">
+        <Alert variant="destructive">
+          <Terminal className="h-4 w-4" />
+          <AlertTitle>Acesso Negado</AlertTitle>
+          <AlertDescription>
+            Você precisa estar logado para acessar o formulário de proposta.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <h1 className="text-3xl font-bold mb-6 text-center">Formulário de Proposta de Projeto de PD&I</h1>
       
+      {/* Mensagem de status do projeto */}
+      {projectId && (
+        <Alert className="mb-6 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+          <Terminal className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <AlertTitle className="text-green-600 dark:text-green-400">Projeto Salvo</AlertTitle>
+          <AlertDescription className="text-green-700 dark:text-green-300">
+            O ID do seu projeto é: <span className="font-mono text-sm">{projectId}</span>. Você pode enviar os anexos separadamente.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Seção de Anexos no topo */}
       <div className="mb-8">
-        <ProjectAttachments control={control} error={errors.anexos?.message} />
+        <ProjectAttachments 
+          control={control} 
+          error={errors.anexos?.message} 
+          projectId={projectId}
+          userId={userId}
+          isSubmitting={isSubmitting}
+        />
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -490,9 +529,18 @@ const ProjectForm = () => {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
-            {isSubmitting ? "Enviando..." : "Enviar Proposta"}
+        <div className="flex justify-end space-x-4">
+          <Button 
+            type="submit" 
+            variant="secondary"
+            onClick={handleSubmit((data) => saveProjectData(data).then(() => showSuccess("Rascunho salvo com sucesso!")).catch(e => showError(e.message)))}
+            disabled={isSubmitting || !userId}
+            className="w-full sm:w-auto"
+          >
+            Salvar Rascunho
+          </Button>
+          <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting || !userId}>
+            {isSubmitting ? "Finalizando..." : "Finalizar Proposta"}
           </Button>
         </div>
       </form>
