@@ -6,8 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// URL do webhook de teste fornecido pelo usuário
-const N8N_WEBHOOK_TEST_URL = "https://n8n.braglam.com/webhook-test/9e3475c0-48f4-436a-992d-d0622a684b22";
+// URL do webhook de PRODUÇÃO (permanente)
+const N8N_WEBHOOK_URL = "https://n8n.braglam.com/webhook/9e3475c0-48f4-436a-992d-d0622a684b22";
 
 serve(async (req) => {
   console.log(`[Notify Attachments Webhook] Function started.`);
@@ -68,7 +68,7 @@ serve(async (req) => {
     console.log("[Notify Attachments Webhook] Sending POST request to n8n with payload:", JSON.stringify(n8nPayload));
 
     // 3. Enviar para o webhook do n8n
-    const n8nResponse = await fetch(N8N_WEBHOOK_TEST_URL, {
+    const n8nResponse = await fetch(N8N_WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
