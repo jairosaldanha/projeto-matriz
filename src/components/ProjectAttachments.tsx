@@ -23,27 +23,30 @@ const ProjectAttachments: React.FC<ProjectAttachmentsProps> = ({ control, error,
           Por favor, anexe todos os documentos e quadros solicitados (Quadros 1 a 10, se aplicável).
         </p>
         
-        {/* 1. Input de Arquivo */}
+        {/* O Controller agora renderiza tanto o Input quanto o Uploader, garantindo que 'field' esteja definido */}
         <Controller
           name="anexos"
           control={control}
           render={({ field }) => (
-            <FileInput
-              id="todos-anexos"
-              label="Selecionar Arquivos"
-              multiple
-              field={field}
-            />
+            <div className="space-y-4">
+              {/* 1. Input de Arquivo */}
+              <FileInput
+                id="todos-anexos"
+                label="Selecionar Arquivos"
+                multiple
+                field={field}
+              />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              
+              {/* 2. Botão de Upload (Componente Uploader) */}
+              <AttachmentUploader 
+                projectId={projectId} 
+                userId={userId} 
+                field={field} // Passa o field corretamente
+                disabled={isSubmitting}
+              />
+            </div>
           )}
-        />
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        
-        {/* 2. Botão de Upload (Componente Uploader) */}
-        <AttachmentUploader 
-          projectId={projectId} 
-          userId={userId} 
-          field={control._fields.anexos as any} // Passa o field do RHF diretamente
-          disabled={isSubmitting}
         />
         
         <p className="text-xs text-muted-foreground pt-2">
