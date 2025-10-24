@@ -152,23 +152,23 @@ const ProjectForm = () => {
     }
 
     // Filtra campos vazios para não sobrescrever dados existentes com strings vazias,
-    // exceto se for uma submissão final (mas aqui estamos focando no rascunho).
+    // mas mantém campos que foram explicitamente preenchidos (mesmo que com string vazia se for submissão final)
+    // Para rascunho, filtramos apenas os campos que têm algum valor.
     const projectToInsert = Object.fromEntries(
       Object.entries(projectData).filter(([, value]) => value !== "" && value !== null && value !== undefined)
     );
     
-    if (Object.keys(projectToInsert).length === 0) {
-        // Não há dados de texto para salvar, mas podemos continuar se for um upload de anexo
-        return projectId;
-    }
-
     let insertedId = projectId;
     
     if (!projectId) {
-      // Inserir novo projeto
+      // Se for um novo projeto, garantimos que pelo menos o user_id seja inserido para obter um ID.
+      const dataToInsert = Object.keys(projectToInsert).length > 0 
+        ? { ...projectToInsert, user_id: userId }
+        : { user_id: userId }; // Mínimo para criar o registro
+
       const { data: insertedProject, error: dbError } = await supabase
         .from('projects')
-        .insert([{ ...projectToInsert, user_id: userId }])
+        .insert([dataToInsert])
         .select('id')
         .single();
 
@@ -178,8 +178,8 @@ const ProjectForm = () => {
       insertedId = insertedProject.id;
       setProjectId(insertedId);
       
-    } else {
-      // Atualizar projeto existente
+    } else if (Object.keys(projectToInsert).length > 0) {
+      // Atualizar projeto existente, mas apenas se houver dados para atualizar
       const { error: dbError } = await supabase
         .from('projects')
         .update(projectToInsert)
@@ -190,6 +190,8 @@ const ProjectForm = () => {
       }
     }
     
+    // Se for um projeto existente e não houver dados de texto para atualizar, 
+    // ou se for um novo projeto que acabou de ser inserido, retornamos o ID.
     return insertedId;
   }, [projectId, userId]);
   
