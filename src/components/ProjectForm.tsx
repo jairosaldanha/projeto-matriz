@@ -14,7 +14,7 @@ import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Loader2 } from "lucide-react";
 import { useSession } from "@/components/SessionContextProvider";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 // 1. Definindo o Schema Zod para o formulário (usado apenas na submissão final)
 const projectSchema = z.object({
@@ -99,8 +99,10 @@ const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextA
 const ProjectForm = () => {
   const { session, isLoading: isSessionLoading } = useSession();
   const navigate = useNavigate();
+  const { projectId: urlProjectId } = useParams<{ projectId: string }>(); // Captura o ID da URL
   
-  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(urlProjectId || null);
+  const [isProjectLoading, setIsProjectLoading] = useState(!!urlProjectId);
   const userId = session?.user?.id || null;
   
   const { control, handleSubmit, formState: { errors, isSubmitting }, reset, getValues } = useForm<ProjectFormData>({
@@ -142,6 +144,45 @@ const ProjectForm = () => {
       navigate('/login');
     }
   }, [isSessionLoading, session, navigate]);
+  
+  // 1. Carregar dados do projeto se houver um ID na URL
+  useEffect(() => {
+    const loadProject = async () => {
+      if (!urlProjectId || !userId) return;
+      
+      setIsProjectLoading(true);
+      
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', urlProjectId)
+        .eq('user_id', userId)
+        .single();
+        
+      if (error) {
+        console.error("Erro ao carregar projeto:", error);
+        showError("Falha ao carregar os dados do projeto. Verifique se você tem permissão.");
+        navigate('/'); // Redireciona para o dashboard se falhar
+        return;
+      }
+      
+      // Remove campos que não devem ser resetados (como anexos)
+      const { id, user_id, created_at, anexos, ...projectData } = data;
+      
+      // Preenche o formulário com os dados carregados
+      reset(projectData as ProjectFormData);
+      setProjectId(urlProjectId);
+      setIsProjectLoading(false);
+    };
+    
+    if (urlProjectId && userId) {
+      loadProject();
+    } else if (!urlProjectId) {
+      // Se for um novo projeto, garante que o estado de carregamento esteja falso
+      setIsProjectLoading(false);
+    }
+  }, [urlProjectId, userId, reset, navigate]);
+
 
   // Função centralizada para salvar/atualizar dados do projeto (usada por rascunho e submissão final)
   const saveProjectData = useCallback(async (data: Partial<ProjectFormData>) => {
@@ -178,6 +219,9 @@ const ProjectForm = () => {
       insertedId = insertedProject.id;
       setProjectId(insertedId);
       
+      // Redireciona para a URL de edição do projeto recém-criado
+      navigate(`/projects/${insertedId}`, { replace: true });
+      
     } else if (Object.keys(projectToInsert).length > 0) {
       // Atualizar projeto existente, mas apenas se houver dados para atualizar
       const { error: dbError } = await supabase
@@ -193,7 +237,7 @@ const ProjectForm = () => {
     // Se for um projeto existente e não houver dados de texto para atualizar, 
     // ou se for um novo projeto que acabou de ser inserido, retornamos o ID.
     return insertedId;
-  }, [projectId, userId]);
+  }, [projectId, userId, navigate]);
   
   // Função para salvar rascunho (ignora validação Zod)
   const saveDraft = useCallback(async () => {
@@ -266,6 +310,9 @@ const ProjectForm = () => {
       } else {
         showSuccess(`Proposta ${projectId ? 'atualizada' : 'enviada'} com sucesso! (Houve um problema na notificação do n8n, verifique os logs.)`);
       }
+      
+      // Redireciona para o dashboard após o envio bem-sucedido
+      navigate('/');
 
     } catch (error) {
       console.error("Erro ao submeter projeto:", error);
@@ -277,10 +324,26 @@ const ProjectForm = () => {
   if (isSessionLoading || !session) {
     return null;
   }
+  
+  if (isProjectLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-lg">Carregando projeto...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6 text-center">Formulário de Proposta de Projeto de PD&I</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">
+          {projectId ? "Editar Proposta de Projeto" : "Nova Proposta de Projeto de PD&I"}
+        </h1>
+        <Button variant="outline" onClick={() => navigate('/')}>
+          Voltar para o Dashboard
+        </Button>
+      </div>
       
       {/* Mensagem de status do projeto */}
       {projectId && (
