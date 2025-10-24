@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, Trash2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,14 @@ import { cn } from "@/lib/utils";
 // Nome do bucket de arquivos
 const ATTACHMENTS_BUCKET = "project-uploads";
 
+interface UploadedFile {
+  id: string; // ID do registro no DB
+  file_name: string;
+  storage_path: string;
+  size_bytes: number;
+  mime_type: string;
+}
+
 interface AttachmentUploaderProps {
   projectId: string | null;
   userId: string | null;
@@ -16,20 +24,47 @@ interface AttachmentUploaderProps {
   disabled: boolean;
 }
 
-interface UploadedFile {
-  id: string; // ID temporário para a UI
-  file_name: string;
-  storage_path: string;
-  size_bytes: number;
-  mime_type: string;
-}
-
 const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, userId, field, disabled }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
   
   // Arquivos selecionados no input (FileList)
   const selectedFiles = field.value as FileList | null;
+
+  // Função auxiliar para formatar tamanho do arquivo
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Efeito para carregar anexos existentes quando o projectId estiver disponível
+  useEffect(() => {
+    const fetchAttachments = async () => {
+      if (!projectId) return;
+
+      setIsFetching(true);
+      
+      const { data, error } = await supabase
+        .from('project_attachments')
+        .select('id, file_name, storage_path, size_bytes, mime_type')
+        .eq('project_id', projectId);
+
+      if (error) {
+        console.error("Erro ao buscar anexos:", error);
+        showError("Falha ao carregar anexos existentes.");
+      } else {
+        setUploadedFiles(data as UploadedFile[]);
+      }
+      setIsFetching(false);
+    };
+
+    fetchAttachments();
+  }, [projectId]);
+
 
   const handleUpload = useCallback(async () => {
     if (!selectedFiles || selectedFiles.length === 0) {
@@ -37,7 +72,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       return;
     }
     if (!projectId || !userId) {
-      showError("Erro de autenticação ou ID do projeto ausente. Tente salvar o projeto primeiro.");
+      showError("Erro: Salve o rascunho do projeto primeiro para gerar um ID e habilitar o upload de anexos.");
       return;
     }
 
@@ -92,22 +127,17 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       const { data: insertedMetadata, error: metadataError } = await supabase
         .from('project_attachments')
         .insert(dbRecords)
-        .select('*');
+        .select('id, file_name, storage_path, size_bytes, mime_type');
 
       if (metadataError) {
+        // Se a inserção falhar, tentamos reverter o upload do storage (melhor esforço)
+        const pathsToDelete = newAttachmentRecords.map(r => r.storage_path);
+        await supabase.storage.from(ATTACHMENTS_BUCKET).remove(pathsToDelete);
         throw new Error(`Falha ao salvar metadados dos anexos: ${metadataError.message}`);
       }
       
       // Atualiza a lista de arquivos carregados na UI
-      const newUploadedFiles: UploadedFile[] = insertedMetadata.map((item: any) => ({
-        id: item.id, // Usando o ID real do DB
-        file_name: item.file_name,
-        storage_path: item.storage_path,
-        size_bytes: item.size_bytes,
-        mime_type: item.mime_type,
-      }));
-      
-      setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
+      setUploadedFiles(prev => [...prev, ...(insertedMetadata as UploadedFile[])]);
       
       // Limpa o input de arquivo no formulário (seta para null)
       field.onChange(null); 
@@ -124,13 +154,48 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
     }
   }, [selectedFiles, projectId, userId, field]);
   
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  const handleDelete = useCallback(async (file: UploadedFile) => {
+    const confirmDelete = window.confirm(`Tem certeza que deseja excluir o arquivo: ${file.file_name}?`);
+    if (!confirmDelete) return;
+
+    const toastId = showLoading(`Excluindo ${file.file_name}...`);
+
+    try {
+      // 1. Deletar do Storage
+      const { error: storageError } = await supabase.storage
+        .from(ATTACHMENTS_BUCKET)
+        .remove([file.storage_path]);
+
+      if (storageError) {
+        // Se falhar no storage, logamos, mas tentamos deletar do DB
+        console.error("Falha ao deletar do Storage:", storageError);
+      }
+
+      // 2. Deletar do Banco de Dados
+      const { error: dbError } = await supabase
+        .from('project_attachments')
+        .delete()
+        .eq('id', file.id);
+
+      if (dbError) {
+        throw new Error(`Falha ao deletar metadados do DB: ${dbError.message}`);
+      }
+
+      // 3. Atualizar UI
+      setUploadedFiles(prev => prev.filter(f => f.id !== file.id));
+
+      dismissToast(toastId);
+      showSuccess(`Arquivo ${file.file_name} excluído com sucesso.`);
+
+    } catch (error) {
+      console.error("Erro ao deletar anexo:", error);
+      dismissToast(toastId);
+      showError(`Falha ao excluir: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    }
+  }, []);
+
+
+  const isUploadDisabled = disabled || isUploading || !selectedFiles || selectedFiles.length === 0 || !projectId;
 
   return (
     <div className="space-y-4">
@@ -144,7 +209,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Selecione os arquivos acima para habilitar o botão de upload.
+              {projectId ? "Selecione os arquivos acima para habilitar o botão de upload." : "Salve o rascunho do projeto para habilitar o upload de anexos."}
             </p>
           )}
         </div>
@@ -152,7 +217,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
         <Button 
           type="button" 
           onClick={handleUpload} 
-          disabled={disabled || isUploading || !selectedFiles || selectedFiles.length === 0}
+          disabled={isUploadDisabled}
           className="min-w-[150px]"
         >
           {isUploading ? (
@@ -170,26 +235,43 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       </div>
 
       {/* Lista de Arquivos Carregados */}
-      {uploadedFiles.length > 0 && (
+      {(isFetching || uploadedFiles.length > 0) && (
         <div className="border rounded-md p-4 bg-secondary/30">
           <h4 className="text-sm font-semibold mb-2">Arquivos Carregados ({uploadedFiles.length}):</h4>
-          <ul className="space-y-2">
-            {uploadedFiles.map((file) => (
-              <li key={file.id} className="flex items-center justify-between text-sm text-foreground/80">
-                <div className="flex items-center truncate">
-                  <FileText className="h-4 w-4 mr-2 text-primary" />
-                  <span className="truncate">{file.file_name}</span>
-                </div>
-                <span className="text-xs text-muted-foreground ml-4 flex-shrink-0">
-                  {formatFileSize(file.size_bytes)}
-                </span>
-                {/* Implementação de exclusão (opcional, mas boa prática) */}
-                {/* <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-2">
-                  <Trash2 className="h-3 w-3 text-destructive" />
-                </Button> */}
-              </li>
-            ))}
-          </ul>
+          
+          {isFetching && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="ml-2 text-sm text-muted-foreground">Carregando anexos...</span>
+            </div>
+          )}
+
+          {!isFetching && uploadedFiles.length > 0 && (
+            <ul className="space-y-2">
+              {uploadedFiles.map((file) => (
+                <li key={file.id} className="flex items-center justify-between text-sm text-foreground/80 p-1 hover:bg-secondary/50 rounded-sm transition-colors">
+                  <div className="flex items-center truncate min-w-0 flex-grow">
+                    <FileText className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
+                    <span className="truncate font-medium">{file.file_name}</span>
+                  </div>
+                  <div className="flex items-center flex-shrink-0 ml-4">
+                    <span className="text-xs text-muted-foreground mr-2">
+                      {formatFileSize(file.size_bytes)}
+                    </span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0"
+                      onClick={() => handleDelete(file)}
+                      disabled={disabled || isUploading}
+                    >
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>
