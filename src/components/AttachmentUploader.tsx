@@ -7,7 +7,7 @@ import { ControllerRenderProps, FieldValues } from "react-hook-form";
 import { cn } from "@/lib/utils";
 
 // Nome do bucket de arquivos
-const ATTACHMENTS_BUCKET = "project-uploads";
+const ATTACHMENTS_BUCKET = "formulario_arquivos";
 
 interface UploadedFile {
   id: string; // ID do registro no DB
