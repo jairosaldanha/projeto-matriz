@@ -65,6 +65,22 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
 
     fetchAttachments();
   }, [projectId]);
+  
+  // Função para chamar a Edge Function de notificação de anexos
+  const notifyAttachmentsWebhook = useCallback(async (id: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('notify-attachments-webhook', {
+        body: { project_id: id },
+      });
+
+      if (error) {
+        console.error("Erro ao chamar Edge Function de notificação de anexos:", error);
+        // Não mostramos erro crítico, pois o upload já foi bem-sucedido
+      }
+    } catch (e) {
+      console.error("Erro inesperado ao chamar Edge Function de notificação de anexos:", e);
+    }
+  }, []);
 
 
   const handleUpload = useCallback(async () => {
@@ -149,6 +165,9 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
         throw new Error(`Falha ao salvar metadados dos anexos: ${metadataError.message}`);
       }
       
+      // 5. Notificar o webhook com os IDs dos anexos (incluindo os recém-inseridos)
+      await notifyAttachmentsWebhook(currentProjectId);
+      
       // Atualiza a lista de arquivos carregados na UI
       setUploadedFiles(prev => [...prev, ...(insertedMetadata as UploadedFile[])]);
       
@@ -165,7 +184,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
     } finally {
       setIsUploading(false);
     }
-  }, [selectedFiles, projectId, userId, field, onSaveDraft]);
+  }, [selectedFiles, projectId, userId, field, onSaveDraft, notifyAttachmentsWebhook]);
   
   const handleDelete = useCallback(async (file: UploadedFile) => {
     const confirmDelete = window.confirm(`Tem certeza que deseja excluir o arquivo: ${file.file_name}?`);
@@ -196,6 +215,11 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
 
       // 3. Atualizar UI
       setUploadedFiles(prev => prev.filter(f => f.id !== file.id));
+      
+      // 4. Notificar o webhook sobre a mudança (opcional, mas útil para manter o n8n atualizado)
+      if (projectId) {
+        await notifyAttachmentsWebhook(projectId);
+      }
 
       dismissToast(toastId);
       showSuccess(`Arquivo ${file.file_name} excluído com sucesso.`);
@@ -205,7 +229,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       dismissToast(toastId);
       showError(`Falha ao excluir: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
-  }, []);
+  }, [projectId, notifyAttachmentsWebhook]);
 
 
   const isUploadDisabled = disabled || isUploading || !selectedFiles || selectedFiles.length === 0 || !userId;
