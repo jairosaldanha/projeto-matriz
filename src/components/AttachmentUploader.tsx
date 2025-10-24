@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 // Nome do bucket de arquivos
 const ATTACHMENTS_BUCKET = "formulario_arquivos";
+const MAX_ATTACHMENTS = 5; // Definindo o limite máximo de anexos
 
 interface UploadedFile {
   id: string; // ID do registro no DB
@@ -104,16 +105,34 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       }
       currentProjectId = savedId;
     }
+    
+    // --- Lógica de Limite de Arquivos ---
+    const currentCount = uploadedFiles.length;
+    const filesToUpload = Array.from(selectedFiles);
+    
+    if (currentCount >= MAX_ATTACHMENTS) {
+      showError(`Limite máximo de ${MAX_ATTACHMENTS} arquivos já atingido. Exclua um anexo para continuar.`);
+      return;
+    }
+    
+    const remainingSlots = MAX_ATTACHMENTS - currentCount;
+    let filesToProcess = filesToUpload;
+    
+    if (filesToUpload.length > remainingSlots) {
+      showError(`Você pode enviar no máximo mais ${remainingSlots} arquivo(s). Apenas os primeiros ${remainingSlots} serão processados.`);
+      filesToProcess = filesToUpload.slice(0, remainingSlots);
+    }
+    // ------------------------------------
 
     setIsUploading(true);
-    const toastId = showLoading(`Enviando ${selectedFiles.length} arquivo(s)...`);
+    const toastId = showLoading(`Enviando ${filesToProcess.length} arquivo(s)...`);
     
     const newAttachmentRecords: Omit<UploadedFile, 'id'>[] = [];
     let successfulUploads = 0;
 
     try {
-      for (let i = 0; i < selectedFiles.length; i++) {
-        const file = selectedFiles[i];
+      for (let i = 0; i < filesToProcess.length; i++) {
+        const file = filesToProcess[i];
         // O caminho de armazenamento deve ser único e isolado por usuário/projeto
         const storagePath = `${userId}/${currentProjectId}/${Date.now()}-${file.name}`;
 
@@ -184,7 +203,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
     } finally {
       setIsUploading(false);
     }
-  }, [selectedFiles, projectId, userId, field, onSaveDraft, notifyAttachmentsWebhook]);
+  }, [selectedFiles, projectId, userId, field, onSaveDraft, notifyAttachmentsWebhook, uploadedFiles.length]);
   
   const handleDelete = useCallback(async (file: UploadedFile) => {
     const confirmDelete = window.confirm(`Tem certeza que deseja excluir o arquivo: ${file.file_name}?`);
@@ -233,6 +252,12 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
 
 
   const isUploadDisabled = disabled || isUploading || !selectedFiles || selectedFiles.length === 0 || !userId;
+  
+  const remainingSlots = MAX_ATTACHMENTS - uploadedFiles.length;
+  const uploadMessage = projectId 
+    ? `Você pode anexar até ${MAX_ATTACHMENTS} arquivos. Slots restantes: ${remainingSlots}.` 
+    : "Salve o rascunho do projeto ou selecione arquivos para salvar automaticamente.";
+
 
   return (
     <div className="space-y-4">
@@ -246,7 +271,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              {projectId ? "Selecione os arquivos acima para habilitar o botão de upload." : "Salve o rascunho do projeto ou selecione arquivos para salvar automaticamente."}
+              {uploadMessage}
             </p>
           )}
         </div>
@@ -254,7 +279,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
         <Button 
           type="button" 
           onClick={handleUpload} 
-          disabled={isUploadDisabled}
+          disabled={isUploadDisabled || remainingSlots === 0}
           className="min-w-[150px]"
         >
           {isUploading ? (
@@ -274,7 +299,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       {/* Lista de Arquivos Carregados */}
       {(isFetching || uploadedFiles.length > 0) && (
         <div className="border rounded-md p-4 bg-secondary/30">
-          <h4 className="text-sm font-semibold mb-2">Arquivos Carregados ({uploadedFiles.length}):</h4>
+          <h4 className="text-sm font-semibold mb-2">Arquivos Carregados ({uploadedFiles.length}/{MAX_ATTACHMENTS}):</h4>
           
           {isFetching && (
             <div className="flex items-center justify-center py-4">
