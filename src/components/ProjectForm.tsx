@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Loader2 } from "lucide-react";
+import { useSession } from "@/components/SessionContextProvider";
+import { useNavigate } from "react-router-dom";
 
 // 1. Definindo o Schema Zod para o formulário
 const projectSchema = z.object({
@@ -96,10 +98,12 @@ const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextA
 );
 
 const ProjectForm = () => {
+  const { session, isLoading: isSessionLoading } = useSession();
+  const navigate = useNavigate();
+  
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  const userId = session?.user?.id || null;
   const [isProjectSaved, setIsProjectSaved] = useState(false);
-  const [isAuthChecked, setIsAuthChecked] = useState(false);
 
   const { control, handleSubmit, formState: { errors, isSubmitting }, reset, getValues } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
@@ -134,27 +138,19 @@ const ProjectForm = () => {
     }
   });
   
-  // 0. Verificar autenticação e carregar ID do usuário
+  // 0. Redirecionar se não estiver autenticado
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-      } else {
-        // TODO: Implementar redirecionamento para login
-        showError("Você precisa estar logado para preencher o formulário.");
-      }
-      setIsAuthChecked(true);
-    };
-    checkAuth();
-  }, []);
+    if (!isSessionLoading && !session) {
+      navigate('/login');
+    }
+  }, [isSessionLoading, session, navigate]);
 
   // Função para salvar/atualizar o projeto no banco de dados
   const saveProjectData = async (data: ProjectFormData) => {
     const { anexos, ...projectData } = data;
     
     if (!userId) {
-      throw new Error("Usuário não autenticado.");
+      throw new Error("Usuário não autenticado. Redirecionando para login.");
     }
 
     const projectToInsert = { ...projectData, user_id: userId };
@@ -224,27 +220,10 @@ const ProjectForm = () => {
     }
   };
   
-  if (!isAuthChecked) {
-    return (
-      <div className="container mx-auto py-8 px-4 max-w-4xl text-center">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-        <p>Verificando autenticação...</p>
-      </div>
-    );
-  }
-  
-  if (!userId) {
-    return (
-      <div className="container mx-auto py-8 px-4 max-w-4xl">
-        <Alert variant="destructive">
-          <Terminal className="h-4 w-4" />
-          <AlertTitle>Acesso Negado</AlertTitle>
-          <AlertDescription>
-            Você precisa estar logado para acessar o formulário de proposta.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
+  if (isSessionLoading || !session) {
+    // O SessionContextProvider já lida com o loading inicial e o useEffect acima lida com o redirecionamento.
+    // Retornamos null para evitar renderizar o formulário antes da decisão de autenticação/redirecionamento.
+    return null;
   }
 
   return (
