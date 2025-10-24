@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import ProjectAttachments from "./ProjectAttachments";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,9 +16,8 @@ import { Terminal, Loader2 } from "lucide-react";
 import { useSession } from "@/components/SessionContextProvider";
 import { useNavigate } from "react-router-dom";
 
-// 1. Definindo o Schema Zod para o formulário
+// 1. Definindo o Schema Zod para o formulário (usado apenas na submissão final)
 const projectSchema = z.object({
-  // ... (Campos do projeto permanecem os mesmos)
   contextualizacao: z.string().min(1, "Campo obrigatório"),
   objetivo_geral: z.string().min(1, "Campo obrigatório"),
   objetivos_especificos: z.string().min(1, "Campo obrigatório"),
@@ -52,7 +51,7 @@ const projectSchema = z.object({
   
   referencias: z.string().min(1, "Campo obrigatório"),
 
-  // Anexos (FileList ou null) - Agora usado apenas para seleção temporária no FileInput
+  // Anexos (FileList ou null) - Usado apenas para seleção temporária no FileInput
   anexos: z.instanceof(FileList).optional().nullable(),
 });
 
@@ -103,8 +102,7 @@ const ProjectForm = () => {
   
   const [projectId, setProjectId] = useState<string | null>(null);
   const userId = session?.user?.id || null;
-  const [isProjectSaved, setIsProjectSaved] = useState(false);
-
+  
   const { control, handleSubmit, formState: { errors, isSubmitting }, reset, getValues } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
@@ -134,7 +132,7 @@ const ProjectForm = () => {
       justificativa_equipamentos: "",
       justificativa_servicos: "",
       referencias: "",
-      anexos: null, // Mantido para o FileInput, mas não será submetido ao DB
+      anexos: null,
     }
   });
   
@@ -145,32 +143,40 @@ const ProjectForm = () => {
     }
   }, [isSessionLoading, session, navigate]);
 
-  // Função para salvar/atualizar o projeto no banco de dados
-  const saveProjectData = async (data: ProjectFormData) => {
+  // Função centralizada para salvar/atualizar dados do projeto (usada por rascunho e submissão final)
+  const saveProjectData = useCallback(async (data: Partial<ProjectFormData>) => {
     const { anexos, ...projectData } = data;
     
     if (!userId) {
-      throw new Error("Usuário não autenticado. Redirecionando para login.");
+      throw new Error("Usuário não autenticado.");
     }
 
-    const projectToInsert = { ...projectData, user_id: userId };
+    // Filtra campos vazios para não sobrescrever dados existentes com strings vazias,
+    // exceto se for uma submissão final (mas aqui estamos focando no rascunho).
+    const projectToInsert = Object.fromEntries(
+      Object.entries(projectData).filter(([, value]) => value !== "" && value !== null && value !== undefined)
+    );
     
+    if (Object.keys(projectToInsert).length === 0) {
+        // Não há dados de texto para salvar, mas podemos continuar se for um upload de anexo
+        return projectId;
+    }
+
     let insertedId = projectId;
     
     if (!projectId) {
       // Inserir novo projeto
       const { data: insertedProject, error: dbError } = await supabase
         .from('projects')
-        .insert([projectToInsert])
+        .insert([{ ...projectToInsert, user_id: userId }])
         .select('id')
         .single();
 
       if (dbError || !insertedProject) {
-        throw new Error(dbError?.message || "Falha ao inserir novo projeto.");
+        throw new Error(dbError?.message || "Falha ao iniciar novo projeto.");
       }
       insertedId = insertedProject.id;
       setProjectId(insertedId);
-      setIsProjectSaved(true);
       
     } else {
       // Atualizar projeto existente
@@ -185,17 +191,36 @@ const ProjectForm = () => {
     }
     
     return insertedId;
-  };
-
+  }, [projectId, userId]);
+  
+  // Função para salvar rascunho (ignora validação Zod)
+  const saveDraft = useCallback(async () => {
+    const toastId = showLoading("Salvando rascunho...");
+    try {
+      const data = getValues(); // Pega todos os valores atuais do formulário
+      const finalProjectId = await saveProjectData(data);
+      
+      dismissToast(toastId);
+      showSuccess(`Rascunho salvo com sucesso! ID: ${finalProjectId}`);
+      return finalProjectId;
+    } catch (error) {
+      console.error("Erro ao salvar rascunho:", error);
+      dismissToast(toastId);
+      showError(`Falha ao salvar rascunho: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      return null;
+    }
+  }, [getValues, saveProjectData]);
+  
+  // Função de submissão final (usa validação Zod)
   const onSubmit = async (data: ProjectFormData) => {
     const action = projectId ? "Atualizando" : "Enviando";
     const toastId = showLoading(`${action} proposta...`);
     
     try {
-      // 1. Salvar/Atualizar dados do projeto (sem anexos)
+      // 1. Salvar/Atualizar dados do projeto (com todos os campos validados)
       const finalProjectId = await saveProjectData(data);
       
-      // 2. Verificar se há anexos pendentes no FileInput (não deve haver se o usuário usou o botão de upload)
+      // 2. Verificar se há anexos pendentes no FileInput
       if (data.anexos && data.anexos.length > 0) {
         dismissToast(toastId);
         showError("Por favor, use o botão 'Enviar Arquivos' na seção de Anexos antes de finalizar a proposta.");
@@ -205,13 +230,6 @@ const ProjectForm = () => {
       // 3. Confirmação final
       dismissToast(toastId);
       showSuccess(`Proposta ${projectId ? 'atualizada' : 'enviada'} com sucesso! ID do Projeto: ${finalProjectId}`);
-      
-      // Se for a primeira submissão, não resetamos para manter o ID. 
-      // Se fosse um formulário de submissão final, resetaríamos.
-      // Por enquanto, mantemos o estado para permitir atualizações.
-      if (!projectId) {
-        // Se for a primeira submissão, o ID já foi setado acima.
-      }
 
     } catch (error) {
       console.error("Erro ao submeter projeto:", error);
@@ -221,8 +239,6 @@ const ProjectForm = () => {
   };
   
   if (isSessionLoading || !session) {
-    // O SessionContextProvider já lida com o loading inicial e o useEffect acima lida com o redirecionamento.
-    // Retornamos null para evitar renderizar o formulário antes da decisão de autenticação/redirecionamento.
     return null;
   }
 
@@ -236,7 +252,7 @@ const ProjectForm = () => {
           <Terminal className="h-4 w-4 text-green-600 dark:text-green-400" />
           <AlertTitle className="text-green-600 dark:text-green-400">Projeto Salvo</AlertTitle>
           <AlertDescription className="text-green-700 dark:text-green-300">
-            O ID do seu projeto é: <span className="font-mono text-sm">{projectId}</span>. Você pode enviar os anexos separadamente.
+            O ID do seu projeto é: <span className="font-mono text-sm">{projectId}</span>.
           </AlertDescription>
         </Alert>
       )}
@@ -249,6 +265,7 @@ const ProjectForm = () => {
           projectId={projectId}
           userId={userId}
           isSubmitting={isSubmitting}
+          onSaveDraft={saveDraft} // Passa a função de salvamento de rascunho
         />
       </div>
 
@@ -510,9 +527,9 @@ const ProjectForm = () => {
 
         <div className="flex justify-end space-x-4">
           <Button 
-            type="submit" 
+            type="button" // Mudado para type="button" para não disparar o handleSubmit
             variant="secondary"
-            onClick={handleSubmit((data) => saveProjectData(data).then(() => showSuccess("Rascunho salvo com sucesso!")).catch(e => showError(e.message)))}
+            onClick={saveDraft}
             disabled={isSubmitting || !userId}
             className="w-full sm:w-auto"
           >

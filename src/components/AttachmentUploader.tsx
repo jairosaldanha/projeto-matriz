@@ -22,9 +22,10 @@ interface AttachmentUploaderProps {
   userId: string | null;
   field: ControllerRenderProps<FieldValues, any>;
   disabled: boolean;
+  onSaveDraft: () => Promise<string | null>; // Adicionado
 }
 
-const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, userId, field, disabled }) => {
+const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, userId, field, disabled, onSaveDraft }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isFetching, setIsFetching] = useState(false);
@@ -71,9 +72,21 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       showError("Nenhum arquivo selecionado para upload.");
       return;
     }
-    if (!projectId || !userId) {
-      showError("Erro: Salve o rascunho do projeto primeiro para gerar um ID e habilitar o upload de anexos.");
+    if (!userId) {
+      showError("Erro: Usuário não autenticado.");
       return;
+    }
+    
+    let currentProjectId = projectId;
+    
+    // 1. Se o projeto ainda não foi salvo, salve o rascunho primeiro
+    if (!currentProjectId) {
+      const savedId = await onSaveDraft();
+      if (!savedId) {
+        // O onSaveDraft já mostrou o erro
+        return;
+      }
+      currentProjectId = savedId;
     }
 
     setIsUploading(true);
@@ -86,9 +99,9 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         // O caminho de armazenamento deve ser único e isolado por usuário/projeto
-        const storagePath = `${userId}/${projectId}/${Date.now()}-${file.name}`;
+        const storagePath = `${userId}/${currentProjectId}/${Date.now()}-${file.name}`;
 
-        // 1. Upload para o Storage
+        // 2. Upload para o Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from(ATTACHMENTS_BUCKET)
           .upload(storagePath, file, {
@@ -104,7 +117,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
         
         successfulUploads++;
 
-        // 2. Preparar registro para o banco de dados
+        // 3. Preparar registro para o banco de dados
         newAttachmentRecords.push({
           file_name: file.name,
           storage_path: uploadData.path,
@@ -117,10 +130,10 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
         throw new Error("Nenhum arquivo foi enviado com sucesso.");
       }
 
-      // 3. Inserir metadados no banco de dados
+      // 4. Inserir metadados no banco de dados
       const dbRecords = newAttachmentRecords.map(record => ({
         ...record,
-        project_id: projectId,
+        project_id: currentProjectId,
         user_id: userId,
       }));
       
@@ -152,7 +165,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
     } finally {
       setIsUploading(false);
     }
-  }, [selectedFiles, projectId, userId, field]);
+  }, [selectedFiles, projectId, userId, field, onSaveDraft]);
   
   const handleDelete = useCallback(async (file: UploadedFile) => {
     const confirmDelete = window.confirm(`Tem certeza que deseja excluir o arquivo: ${file.file_name}?`);
@@ -195,7 +208,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
   }, []);
 
 
-  const isUploadDisabled = disabled || isUploading || !selectedFiles || selectedFiles.length === 0 || !projectId;
+  const isUploadDisabled = disabled || isUploading || !selectedFiles || selectedFiles.length === 0 || !userId;
 
   return (
     <div className="space-y-4">
@@ -209,7 +222,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              {projectId ? "Selecione os arquivos acima para habilitar o botão de upload." : "Salve o rascunho do projeto para habilitar o upload de anexos."}
+              {projectId ? "Selecione os arquivos acima para habilitar o botão de upload." : "Salve o rascunho do projeto ou selecione arquivos para salvar automaticamente."}
             </p>
           )}
         </div>

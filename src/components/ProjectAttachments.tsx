@@ -10,9 +10,10 @@ interface ProjectAttachmentsProps {
   projectId: string | null;
   userId: string | null;
   isSubmitting: boolean;
+  onSaveDraft: () => Promise<string | null>; // Nova prop
 }
 
-const ProjectAttachments: React.FC<ProjectAttachmentsProps> = ({ control, error, projectId, userId, isSubmitting }) => {
+const ProjectAttachments: React.FC<ProjectAttachmentsProps> = ({ control, error, projectId, userId, isSubmitting, onSaveDraft }) => {
   return (
     <Card>
       <CardHeader>
@@ -44,6 +45,7 @@ const ProjectAttachments: React.FC<ProjectAttachmentsProps> = ({ control, error,
                 userId={userId} 
                 field={field} // Passa o field corretamente
                 disabled={isSubmitting}
+                onSaveDraft={onSaveDraft} // Passa a função
               />
             </div>
           )}
