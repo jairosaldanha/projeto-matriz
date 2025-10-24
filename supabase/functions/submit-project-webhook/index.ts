@@ -10,6 +10,8 @@ const corsHeaders = {
 const N8N_WEBHOOK_URL = "https://n8n.braglam.com/webhook/9e3475c0-48f4-436a-992d-d0622a684b22";
 
 serve(async (req) => {
+  console.log(`[Webhook] Request received: ${req.method}`);
+  
   // Lidar com requisições OPTIONS (CORS)
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -28,7 +30,10 @@ serve(async (req) => {
   );
 
   try {
-    const { project_id, user_id } = await req.json();
+    const body = await req.json();
+    const { project_id, user_id } = body;
+    
+    console.log(`[Webhook] Payload received: project_id=${project_id}, user_id=${user_id}`);
 
     if (!project_id || !user_id) {
       return new Response(
@@ -44,13 +49,15 @@ serve(async (req) => {
       .eq("project_id", project_id);
 
     if (attachmentError) {
-      console.error("Error fetching attachments:", attachmentError);
+      console.error("[Webhook] Error fetching attachments:", attachmentError);
       // Continua mesmo com erro, mas registra
     }
 
     const nome_dos_arquivos = attachments
       ? attachments.map((a) => a.file_name).join(", ")
       : "Nenhum anexo encontrado ou erro na busca.";
+      
+    console.log(`[Webhook] Attachments found: ${nome_dos_arquivos}`);
 
     // 3. Preparar o payload para o n8n
     const n8nPayload = {
@@ -58,6 +65,8 @@ serve(async (req) => {
       project_id: project_id,
       nome_dos_arquivos: nome_dos_arquivos,
     };
+    
+    console.log("[Webhook] Sending payload to n8n:", JSON.stringify(n8nPayload));
 
     // 4. Enviar para o webhook do n8n
     const n8nResponse = await fetch(N8N_WEBHOOK_URL, {
@@ -69,8 +78,11 @@ serve(async (req) => {
     });
 
     if (!n8nResponse.ok) {
-      console.error("N8N Webhook failed:", n8nResponse.status, await n8nResponse.text());
+      const n8nErrorText = await n8nResponse.text();
+      console.error(`[Webhook] N8N Webhook failed: Status ${n8nResponse.status}. Response: ${n8nErrorText}`);
       // Retornamos sucesso para o cliente, mas logamos o erro do webhook
+    } else {
+      console.log(`[Webhook] N8N Webhook successful: Status ${n8nResponse.status}`);
     }
 
     return new Response(
@@ -78,7 +90,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error("Edge Function error:", error);
+    console.error("[Webhook] Edge Function error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
