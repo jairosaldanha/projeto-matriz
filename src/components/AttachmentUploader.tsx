@@ -145,7 +145,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
           });
 
         if (uploadError) {
-          console.error(`Falha no upload do arquivo ${file.name}:`, uploadError);
+          console.error(`[Upload Error] Falha no upload do arquivo ${file.name}:`, uploadError);
           // Continua para o próximo arquivo, mas registra o erro
           continue; 
         }
@@ -162,6 +162,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       }
 
       if (successfulUploads === 0) {
+        // Se chegamos aqui e não houve uploads bem-sucedidos, lançamos um erro
         throw new Error("Nenhum arquivo foi enviado com sucesso.");
       }
 
@@ -213,29 +214,23 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
 
     try {
       // 1. Deletar do Storage
-      const { error: storageError } = await supabase.storage
-        .from(ATTACHMENTS_BUCKET)
-        .remove([file.storage_path]);
+      // Usamos a Edge Function para deletar, pois ela usa a Service Role Key e ignora RLS do DB,
+      // mas para o Storage, o cliente pode tentar deletar se tiver a política correta.
+      // No entanto, para garantir que o arquivo seja deletado, vamos usar a Edge Function 'delete-attachment'
+      // que usa a Service Role Key para deletar tanto do Storage quanto do DB.
+      
+      const { error: edgeError } = await supabase.functions.invoke('delete-attachment', {
+        body: { storage_path: file.storage_path, attachment_id: file.id },
+      });
 
-      if (storageError) {
-        // Se falhar no storage, logamos, mas tentamos deletar do DB
-        console.error("Falha ao deletar do Storage:", storageError);
+      if (edgeError) {
+        throw new Error(`Falha ao chamar Edge Function de exclusão: ${edgeError.message}`);
       }
 
-      // 2. Deletar do Banco de Dados
-      const { error: dbError } = await supabase
-        .from('project_attachments')
-        .delete()
-        .eq('id', file.id);
-
-      if (dbError) {
-        throw new Error(`Falha ao deletar metadados do DB: ${dbError.message}`);
-      }
-
-      // 3. Atualizar UI
+      // 2. Atualizar UI
       setUploadedFiles(prev => prev.filter(f => f.id !== file.id));
       
-      // 4. Notificar o webhook sobre a mudança (opcional, mas útil para manter o n8n atualizado)
+      // 3. Notificar o webhook sobre a mudança (opcional, mas útil para manter o n8n atualizado)
       if (projectId) {
         await notifyAttachmentsWebhook(projectId);
       }
