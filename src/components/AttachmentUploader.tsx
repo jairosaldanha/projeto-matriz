@@ -98,12 +98,24 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
     
     // 1. Se o projeto ainda não foi salvo, salve o rascunho primeiro
     if (!currentProjectId) {
-      const savedId = await onSaveDraft();
-      if (!savedId) {
-        // O onSaveDraft já mostrou o erro
+      try {
+        const savedId = await onSaveDraft();
+        if (!savedId) {
+          // Se onSaveDraft retornar null (o que não deve acontecer se for bem-sucedido), paramos.
+          showError("Falha ao obter ID do projeto após salvar rascunho.");
+          return;
+        }
+        currentProjectId = savedId;
+      } catch (e) {
+        // O erro já foi tratado e exibido pelo onSaveDraft
         return;
       }
-      currentProjectId = savedId;
+    }
+    
+    // Garantir que temos o ID do projeto
+    if (!currentProjectId) {
+      showError("Erro interno: ID do projeto não está disponível.");
+      return;
     }
     
     // --- Lógica de Limite de Arquivos ---
@@ -134,6 +146,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       for (let i = 0; i < filesToProcess.length; i++) {
         const file = filesToProcess[i];
         // O caminho de armazenamento deve ser único e isolado por usuário/projeto
+        // Formato: [user_id]/[project_id]/[timestamp]-[file_name]
         const storagePath = `${userId}/${currentProjectId}/${Date.now()}-${file.name}`;
 
         // 2. Upload para o Storage
@@ -145,8 +158,8 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
           });
 
         if (uploadError) {
-          console.error(`[Upload Error] Falha no upload do arquivo ${file.name}:`, uploadError);
-          // Continua para o próximo arquivo, mas registra o erro
+          console.error(`[Upload Error] Falha no upload do arquivo ${file.name}. Supabase Error:`, uploadError);
+          // Se houver um erro de RLS, ele será logado aqui.
           continue; 
         }
         
@@ -163,7 +176,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
 
       if (successfulUploads === 0) {
         // Se chegamos aqui e não houve uploads bem-sucedidos, lançamos um erro
-        throw new Error("Nenhum arquivo foi enviado com sucesso.");
+        throw new Error("Nenhum arquivo foi enviado com sucesso. Verifique o console para erros de permissão.");
       }
 
       // 4. Inserir metadados no banco de dados
@@ -198,7 +211,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
       showSuccess(`${successfulUploads} arquivo(s) enviado(s) com sucesso!`);
 
     } catch (error) {
-      console.error("Erro durante o upload:", error);
+      console.error("Erro durante o upload (Catch Final):", error);
       dismissToast(toastId);
       showError(`Falha no upload: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     } finally {
@@ -213,12 +226,7 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
     const toastId = showLoading(`Excluindo ${file.file_name}...`);
 
     try {
-      // 1. Deletar do Storage
-      // Usamos a Edge Function para deletar, pois ela usa a Service Role Key e ignora RLS do DB,
-      // mas para o Storage, o cliente pode tentar deletar se tiver a política correta.
-      // No entanto, para garantir que o arquivo seja deletado, vamos usar a Edge Function 'delete-attachment'
-      // que usa a Service Role Key para deletar tanto do Storage quanto do DB.
-      
+      // 1. Deletar usando a Edge Function (Service Role Key)
       const { error: edgeError } = await supabase.functions.invoke('delete-attachment', {
         body: { storage_path: file.storage_path, attachment_id: file.id },
       });

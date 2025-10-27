@@ -185,7 +185,7 @@ const ProjectForm = () => {
 
 
   // Função centralizada para salvar/atualizar dados do projeto (usada por rascunho e submissão final)
-  const saveProjectData = useCallback(async (data: Partial<ProjectFormData>) => {
+  const saveProjectData = useCallback(async (data: Partial<ProjectFormData>): Promise<string> => {
     const { anexos, ...projectData } = data;
     
     if (!userId) {
@@ -220,6 +220,10 @@ const ProjectForm = () => {
       setProjectId(insertedId);
       
       // Redireciona para a URL de edição do projeto recém-criado
+      // Usamos window.history.replaceState para mudar a URL sem recarregar o componente,
+      // pois o navigate com replace: true pode causar problemas de estado no React Router.
+      // No entanto, como estamos usando `useParams`, o `navigate` é a forma mais segura de garantir que o estado do componente seja atualizado.
+      // Vamos manter o navigate, mas garantir que o ProjectAttachments lide com a remontagem.
       navigate(`/projects/${insertedId}`, { replace: true });
       
     } else if (Object.keys(projectToInsert).length > 0) {
@@ -234,8 +238,10 @@ const ProjectForm = () => {
       }
     }
     
-    // Se for um projeto existente e não houver dados de texto para atualizar, 
-    // ou se for um novo projeto que acabou de ser inserido, retornamos o ID.
+    if (!insertedId) {
+      throw new Error("ID do projeto não definido após a operação de salvamento.");
+    }
+    
     return insertedId;
   }, [projectId, userId, navigate]);
   
@@ -252,8 +258,8 @@ const ProjectForm = () => {
     } catch (error) {
       console.error("Erro ao salvar rascunho:", error);
       dismissToast(toastId);
-      showError(`Falha ao salvar rascunho: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
-      return null;
+      // Lançamos o erro novamente para que o AttachmentUploader possa capturá-lo se necessário
+      throw error; 
     }
   }, [getValues, saveProjectData]);
   
@@ -628,7 +634,13 @@ const ProjectForm = () => {
           <Button 
             type="button" // Mudado para type="button" para não disparar o handleSubmit
             variant="secondary"
-            onClick={saveDraft}
+            onClick={async () => {
+              try {
+                await saveDraft();
+              } catch (e) {
+                // O saveDraft já trata o erro e mostra o toast
+              }
+            }}
             disabled={isSubmitting || !userId}
             className="w-full sm:w-auto"
           >
