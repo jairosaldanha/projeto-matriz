@@ -43,12 +43,27 @@ const projectSchema = z.object({
   coordenador_tecnico: z.string().min(1, "Campo obrigatório"),
   equipe_trabalho: z.string().min(1, "Campo obrigatório"),
   
+  // 5. LEAN CANVAS (Novos campos)
+  lc_problema: z.string().min(1, "Campo obrigatório"),
+  lc_solucao: z.string().min(1, "Campo obrigatório"),
+  lc_metricas_chave: z.string().min(1, "Campo obrigatório"),
+  lc_proposta_valor: z.string().min(1, "Campo obrigatório"),
+  lc_vantagem_injusta: z.string().min(1, "Campo obrigatório"),
+  lc_canais: z.string().min(1, "Campo obrigatório"),
+  lc_segmentos_clientes: z.string().min(1, "Campo obrigatório"),
+  lc_estrutura_custos: z.string().min(1, "Campo obrigatório"),
+  lc_fontes_receita: z.string().min(1, "Campo obrigatório"),
+  
+  // 6. POTENCIAL COMERCIAL (Antiga Seção 5)
   potencial_comercial: z.string().min(1, "Campo obrigatório"),
   
+  // 7. ORÇAMENTO (Antiga Seção 6)
   proposta_orcamento: z.string().min(1, "Campo obrigatório"),
   justificativa_equipamentos: z.string().min(1, "Campo obrigatório"),
   justificativa_servicos: z.string().min(1, "Campo obrigatório"),
+  quadro_riscos: z.string().min(1, "Campo obrigatório"), // Novo campo Quadro 11
   
+  // 8. REFERÊNCIAS (Antiga Seção 7)
   referencias: z.string().min(1, "Campo obrigatório"),
 
   // Anexos (FileList ou null) - Usado apenas para seleção temporária no FileInput
@@ -129,10 +144,28 @@ const ProjectForm = () => {
       responsavel_legal: "",
       coordenador_tecnico: "",
       equipe_trabalho: "",
+      
+      // 5. LEAN CANVAS
+      lc_problema: "",
+      lc_solucao: "",
+      lc_metricas_chave: "",
+      lc_proposta_valor: "",
+      lc_vantagem_injusta: "",
+      lc_canais: "",
+      lc_segmentos_clientes: "",
+      lc_estrutura_custos: "",
+      lc_fontes_receita: "",
+      
+      // 6. POTENCIAL COMERCIAL
       potencial_comercial: "",
+      
+      // 7. ORÇAMENTO
       proposta_orcamento: "",
       justificativa_equipamentos: "",
       justificativa_servicos: "",
+      quadro_riscos: "", // Novo campo
+      
+      // 8. REFERÊNCIAS
       referencias: "",
       anexos: null,
     }
@@ -220,10 +253,6 @@ const ProjectForm = () => {
       setProjectId(insertedId);
       
       // Redireciona para a URL de edição do projeto recém-criado
-      // Usamos window.history.replaceState para mudar a URL sem recarregar o componente,
-      // pois o navigate com replace: true pode causar problemas de estado no React Router.
-      // No entanto, como estamos usando `useParams`, o `navigate` é a forma mais segura de garantir que o estado do componente seja atualizado.
-      // Vamos manter o navigate, mas garantir que o ProjectAttachments lide com a remontagem.
       navigate(`/projects/${insertedId}`, { replace: true });
       
     } else if (Object.keys(projectToInsert).length > 0) {
@@ -565,11 +594,86 @@ const ProjectForm = () => {
             />
           </CardContent>
         </Card>
-
-        {/* 5. POTENCIAL COMERCIAL */}
+        
+        {/* 5. LEAN CANVAS (NOVA SEÇÃO) */}
         <Card>
           <CardHeader>
-            <CardTitle>5. POTENCIAL COMERCIAL DO PRODUTO OU PROCESSO QUE RESULTARÁ DESTE PROJETO DE PD&I</CardTitle>
+            <CardTitle>5. LEAN CANVAS</CardTitle>
+            <AlertDescription className="text-sm text-muted-foreground">
+              Preencha os 9 blocos do Lean Canvas para estruturar a proposta de valor do seu projeto.
+            </AlertDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <FormField
+              name="lc_problema"
+              label="5.1. Problema (Top 3 problemas)"
+              placeholder="Liste os 3 principais problemas que seu projeto resolve."
+              control={control}
+              error={errors.lc_problema?.message}
+            />
+            <FormField
+              name="lc_solucao"
+              label="5.2. Solução (Top 3 funcionalidades)"
+              placeholder="Descreva as 3 principais funcionalidades da sua solução."
+              control={control}
+              error={errors.lc_solucao?.message}
+            />
+            <FormField
+              name="lc_metricas_chave"
+              label="5.3. Métricas Chave"
+              placeholder="Quais métricas você usará para medir o sucesso?"
+              control={control}
+              error={errors.lc_metricas_chave?.message}
+            />
+            <FormField
+              name="lc_proposta_valor"
+              label="5.4. Proposta de Valor Única"
+              placeholder="Uma única frase clara e convincente que explica por que você é diferente e vale a pena."
+              control={control}
+              error={errors.lc_proposta_valor?.message}
+            />
+            <FormField
+              name="lc_vantagem_injusta"
+              label="5.5. Vantagem Injusta"
+              placeholder="Algo que não pode ser facilmente copiado ou comprado."
+              control={control}
+              error={errors.lc_vantagem_injusta?.message}
+            />
+            <FormField
+              name="lc_canais"
+              label="5.6. Canais"
+              placeholder="Caminhos para alcançar seus clientes (Ex: Web, Mobile, Parceiros)."
+              control={control}
+              error={errors.lc_canais?.message}
+            />
+            <FormField
+              name="lc_segmentos_clientes"
+              label="5.7. Segmentos de Clientes"
+              placeholder="Quem são seus clientes-alvo e usuários iniciais?"
+              control={control}
+              error={errors.lc_segmentos_clientes?.message}
+            />
+            <FormField
+              name="lc_estrutura_custos"
+              label="5.8. Estrutura de Custos"
+              placeholder="Liste os custos fixos e variáveis mais importantes."
+              control={control}
+              error={errors.lc_estrutura_custos?.message}
+            />
+            <FormField
+              name="lc_fontes_receita"
+              label="5.9. Fontes de Receita"
+              placeholder="Como você fará dinheiro? (Ex: Assinatura, Venda Direta)."
+              control={control}
+              error={errors.lc_fontes_receita?.message}
+            />
+          </CardContent>
+        </Card>
+
+        {/* 6. POTENCIAL COMERCIAL (Antiga Seção 5) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>6. POTENCIAL COMERCIAL DO PRODUTO OU PROCESSO QUE RESULTARÁ DESTE PROJETO DE PD&I</CardTitle>
           </CardHeader>
           <CardContent>
             <FormField
@@ -582,10 +686,10 @@ const ProjectForm = () => {
           </CardContent>
         </Card>
 
-        {/* 6. ORÇAMENTO */}
+        {/* 7. ORÇAMENTO (Antiga Seção 6) */}
         <Card>
           <CardHeader>
-            <CardTitle>6. ORÇAMENTO</CardTitle>
+            <CardTitle>7. ORÇAMENTO</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
@@ -594,6 +698,13 @@ const ProjectForm = () => {
               placeholder="Descreva a proposta de orçamento. (Em um formulário real, isso seria uma tabela, mas aqui usamos um campo de texto para a descrição geral.)"
               control={control}
               error={errors.proposta_orcamento?.message}
+            />
+            <FormField
+              name="quadro_riscos"
+              label="Quadro 11 – Tabela de Riscos (Descrição)"
+              placeholder="Descreva os principais riscos do projeto e as estratégias de mitigação."
+              control={control}
+              error={errors.quadro_riscos?.message}
             />
             <Separator />
             <Label className="text-base font-semibold block">Justificativas de:</Label>
@@ -614,10 +725,10 @@ const ProjectForm = () => {
           </CardContent>
         </Card>
 
-        {/* 7. REFERÊNCIAS */}
+        {/* 8. REFERÊNCIAS (Antiga Seção 7) */}
         <Card>
           <CardHeader>
-            <CardTitle>7. REFERÊNCIAS</CardTitle>
+            <CardTitle>8. REFERÊNCIAS</CardTitle>
           </CardHeader>
           <CardContent>
             <FormField
