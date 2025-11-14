@@ -15,10 +15,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Loader2 } from "lucide-react";
 import { useSession } from "@/components/SessionContextProvider";
 import { useNavigate, useParams } from "react-router-dom";
-import AIEnhanceButton from "./AIEnhanceButton"; // Importando o novo componente
+import AIEnhanceButton from "./AIEnhanceButton";
+import MarkdownTableEditor from "./MarkdownTableEditor"; // Importando o novo componente
 
 // 1. Definindo o Schema Zod para o formulário (usado apenas na submissão final)
 const projectSchema = z.object({
+  project_name: z.string().min(1, "Nome do Projeto é obrigatório"), // NOVO CAMPO
   contextualizacao: z.string().min(1, "Campo obrigatório"),
   objetivo_geral: z.string().min(1, "Campo obrigatório"),
   objetivos_especificos: z.string().min(1, "Campo obrigatório"),
@@ -59,7 +61,8 @@ const projectSchema = z.object({
   potencial_comercial: z.string().min(1, "Campo obrigatório"),
   
   // 7. ORÇAMENTO (Antiga Seção 6)
-  proposta_orcamento: z.string().min(1, "Campo obrigatório"),
+  // Agora espera uma string Markdown (que pode ser vazia, mas o min(1) garante que a tabela não está vazia)
+  proposta_orcamento: z.string().min(1, "A tabela de orçamento é obrigatória. Adicione pelo menos uma linha."), 
   justificativa_equipamentos: z.string().min(1, "Campo obrigatório"),
   justificativa_servicos: z.string().min(1, "Campo obrigatório"),
   quadro_riscos: z.string().min(1, "Campo obrigatório"), // Novo campo Quadro 11
@@ -142,6 +145,7 @@ const ProjectForm = () => {
   const { control, handleSubmit, formState: { errors, isSubmitting }, reset, getValues, setValue } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
+      project_name: "", // NOVO DEFAULT
       contextualizacao: "",
       objetivo_geral: "",
       objetivos_especificos: "",
@@ -179,7 +183,7 @@ const ProjectForm = () => {
       potencial_comercial: "",
       
       // 7. ORÇAMENTO
-      proposta_orcamento: "",
+      proposta_orcamento: "", // Será uma string Markdown
       justificativa_equipamentos: "",
       justificativa_servicos: "",
       quadro_riscos: "", // Novo campo
@@ -424,6 +428,25 @@ const ProjectForm = () => {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         
+        {/* Nome do Projeto (Novo Campo) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Nome do Projeto</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FormField
+              name="project_name"
+              label="Nome Curto do Projeto"
+              placeholder="Ex: Desenvolvimento de um novo sistema de IA para otimização logística"
+              isTextArea={false}
+              control={control}
+              error={errors.project_name?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
+            />
+          </CardContent>
+        </Card>
+
         {/* 1. INTRODUÇÃO */}
         <Card>
           <CardHeader>
@@ -773,15 +796,21 @@ const ProjectForm = () => {
             <CardTitle>7. ORÇAMENTO</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <FormField
+            {/* NOVO COMPONENTE DE TABELA PARA ORÇAMENTO */}
+            <Controller
               name="proposta_orcamento"
-              label="Quadro 10 – Proposta de orçamento do projeto"
-              placeholder="Descreva a proposta de orçamento. (Em um formulário real, isso seria uma tabela, mas aqui usamos um campo de texto para a descrição geral.)"
               control={control}
-              error={errors.proposta_orcamento?.message}
-              setValue={setValue}
-              isSubmitting={isSubmitting}
+              render={({ field }) => (
+                <MarkdownTableEditor
+                  label="Quadro 10 – Proposta de orçamento do projeto (Tabela)"
+                  placeholder="Adicione itens de orçamento aqui."
+                  field={field}
+                  error={errors.proposta_orcamento?.message}
+                  disabled={isSubmitting}
+                />
+              )}
             />
+            
             <FormField
               name="quadro_riscos"
               label="Quadro 11 – Tabela de Riscos (Descrição)"

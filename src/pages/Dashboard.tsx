@@ -10,6 +10,7 @@ import { showError } from '@/utils/toast';
 interface Project {
   id: string;
   created_at: string;
+  project_name: string | null; // Novo campo
   contextualizacao: string | null;
 }
 
@@ -34,7 +35,7 @@ const Dashboard: React.FC = () => {
       setIsLoadingProjects(true);
       const { data, error } = await supabase
         .from('projects')
-        .select('id, created_at, contextualizacao')
+        .select('id, created_at, project_name, contextualizacao') // Incluindo project_name
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
@@ -101,7 +102,8 @@ const Dashboard: React.FC = () => {
                     <FileText className="h-5 w-5 mr-4 text-primary flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="font-semibold truncate">
-                        {project.contextualizacao ? project.contextualizacao.substring(0, 80) + '...' : `Projeto sem título (${project.id.substring(0, 8)})`}
+                        {/* Exibe o nome do projeto, ou a contextualização truncada como fallback */}
+                        {project.project_name || (project.contextualizacao ? project.contextualizacao.substring(0, 80) + '...' : `Projeto sem título (${project.id.substring(0, 8)})`)}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Criado em: {new Date(project.created_at).toLocaleDateString()}
