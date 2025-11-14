@@ -44,7 +44,17 @@ const Login: React.FC = () => {
             }}
             theme="light"
             redirectTo={window.location.origin + '/'}
-            view="sign_in" // Força a visualização para apenas Login
+            view="sign_in"
+            localization={{
+              variables: {
+                sign_in: {
+                  link_text: 'Já tem uma conta? Faça login', // Mantém o texto de login
+                },
+                sign_up: {
+                  link_text: '', // Remove o link de Sign Up
+                },
+              },
+            }}
           />
         </CardContent>
       </Card>
