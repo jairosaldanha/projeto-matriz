@@ -42,8 +42,9 @@ const Login: React.FC = () => {
                 },
               },
             }}
-            theme="light" // Usando tema claro, mas o styling do shadcn/ui deve prevalecer
+            theme="light"
             redirectTo={window.location.origin + '/'}
+            view="sign_in" // Força a visualização para apenas Login
           />
         </CardContent>
       </Card>
