@@ -86,9 +86,10 @@ interface FormFieldProps {
   error: string | undefined;
   setValue: UseFormSetValue<ProjectFormData>; // Adicionado para atualizar o valor
   isSubmitting: boolean; // Adicionado para desabilitar o botão de IA durante a submissão
+  projectId: string | null; // NOVO: ID do projeto
 }
 
-const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextArea = true, control, error, setValue, isSubmitting }) => (
+const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextArea = true, control, error, setValue, isSubmitting, projectId }) => (
   <div className="space-y-2">
     <div className="flex justify-between items-center">
       <Label htmlFor={name}>{label}</Label>
@@ -102,6 +103,8 @@ const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextA
               currentText={field.value || ""}
               onEnhance={(enhancedText) => setValue(name, enhancedText, { shouldDirty: true })}
               disabled={isSubmitting}
+              projectId={projectId} // Passando o ID do projeto
+              fieldName={name} // Passando o nome do campo
             />
           )}
         />
@@ -443,6 +446,7 @@ const ProjectForm = () => {
               error={errors.project_name?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>
@@ -461,6 +465,7 @@ const ProjectForm = () => {
               error={errors.contextualizacao?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             
             <div className="space-y-4">
@@ -473,6 +478,7 @@ const ProjectForm = () => {
                 error={errors.objetivo_geral?.message}
                 setValue={setValue}
                 isSubmitting={isSubmitting}
+                projectId={projectId}
               />
               <FormField
                 name="objetivos_especificos"
@@ -482,6 +488,7 @@ const ProjectForm = () => {
                 error={errors.objetivos_especificos?.message}
                 setValue={setValue}
                 isSubmitting={isSubmitting}
+                projectId={projectId}
               />
             </div>
 
@@ -493,6 +500,7 @@ const ProjectForm = () => {
               error={errors.justificativa?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="estagio_atual"
@@ -502,6 +510,7 @@ const ProjectForm = () => {
               error={errors.estagio_atual?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>
@@ -520,6 +529,7 @@ const ProjectForm = () => {
               error={errors.fundamentacao_teorica?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="metodologia"
@@ -529,6 +539,7 @@ const ProjectForm = () => {
               error={errors.metodologia?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="descricao_atividades"
@@ -538,6 +549,7 @@ const ProjectForm = () => {
               error={errors.descricao_atividades?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="entregas_cronograma"
@@ -547,6 +559,7 @@ const ProjectForm = () => {
               error={errors.entregas_cronograma?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>
@@ -565,6 +578,7 @@ const ProjectForm = () => {
               error={errors.historico_empresa?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="informacoes_administrativas"
@@ -574,6 +588,7 @@ const ProjectForm = () => {
               error={errors.informacoes_administrativas?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="informacoes_comerciais"
@@ -583,6 +598,7 @@ const ProjectForm = () => {
               error={errors.informacoes_comerciais?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="infraestrutura_pdi"
@@ -592,6 +608,7 @@ const ProjectForm = () => {
               error={errors.infraestrutura_pdi?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="acervo_pi"
@@ -601,6 +618,7 @@ const ProjectForm = () => {
               error={errors.acervo_pi?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="patentes_terceiros"
@@ -610,6 +628,7 @@ const ProjectForm = () => {
               error={errors.patentes_terceiros?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="novos_produtos"
@@ -619,6 +638,7 @@ const ProjectForm = () => {
               error={errors.novos_produtos?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="principais_competidores"
@@ -628,6 +648,7 @@ const ProjectForm = () => {
               error={errors.principais_competidores?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="contrapartida_fundos"
@@ -637,6 +658,7 @@ const ProjectForm = () => {
               error={errors.contrapartida_fundos?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>
@@ -656,6 +678,7 @@ const ProjectForm = () => {
               error={errors.responsavel_legal?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="coordenador_tecnico"
@@ -666,6 +689,7 @@ const ProjectForm = () => {
               error={errors.coordenador_tecnico?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="equipe_trabalho"
@@ -675,6 +699,7 @@ const ProjectForm = () => {
               error={errors.equipe_trabalho?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>
@@ -696,6 +721,7 @@ const ProjectForm = () => {
               error={errors.lc_problema?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="lc_solucao"
@@ -705,6 +731,7 @@ const ProjectForm = () => {
               error={errors.lc_solucao?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="lc_metricas_chave"
@@ -714,6 +741,7 @@ const ProjectForm = () => {
               error={errors.lc_metricas_chave?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="lc_proposta_valor"
@@ -723,6 +751,7 @@ const ProjectForm = () => {
               error={errors.lc_proposta_valor?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="lc_vantagem_injusta"
@@ -732,6 +761,7 @@ const ProjectForm = () => {
               error={errors.lc_vantagem_injusta?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="lc_canais"
@@ -741,6 +771,7 @@ const ProjectForm = () => {
               error={errors.lc_canais?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="lc_segmentos_clientes"
@@ -750,6 +781,7 @@ const ProjectForm = () => {
               error={errors.lc_segmentos_clientes?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="lc_estrutura_custos"
@@ -759,6 +791,7 @@ const ProjectForm = () => {
               error={errors.lc_estrutura_custos?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="lc_fontes_receita"
@@ -768,6 +801,7 @@ const ProjectForm = () => {
               error={errors.lc_fontes_receita?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>
@@ -786,6 +820,7 @@ const ProjectForm = () => {
               error={errors.potencial_comercial?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>
@@ -819,6 +854,7 @@ const ProjectForm = () => {
               error={errors.quadro_riscos?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <Separator />
             <Label className="text-base font-semibold block">Justificativas de:</Label>
@@ -830,6 +866,7 @@ const ProjectForm = () => {
               error={errors.justificativa_equipamentos?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
             <FormField
               name="justificativa_servicos"
@@ -839,6 +876,7 @@ const ProjectForm = () => {
               error={errors.justificativa_servicos?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>
@@ -857,6 +895,7 @@ const ProjectForm = () => {
               error={errors.referencias?.message}
               setValue={setValue}
               isSubmitting={isSubmitting}
+              projectId={projectId}
             />
           </CardContent>
         </Card>

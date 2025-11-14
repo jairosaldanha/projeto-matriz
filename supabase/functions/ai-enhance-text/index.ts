@@ -5,6 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// URL base do seu webhook do n8n
+const N8N_WEBHOOK_URL = "https://n8n.braglam.com/webhook/9e3475c0-48f4-436a-992d-d0622a684b22";
+
 // Função simples para simular o aprimoramento de texto
 function enhanceText(originalText: string): string {
     if (!originalText || originalText.trim().length < 10) {
@@ -29,14 +32,14 @@ serve(async (req) => {
   }
 
   try {
-    // Verificação de autenticação básica (apenas para garantir que a requisição vem de um usuário logado)
+    // Verificação de autenticação básica
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response('Unauthorized', { status: 401, headers: corsHeaders });
     }
     
     const body = await req.json();
-    const { text } = body;
+    const { text, project_id, field_name } = body; // Recebendo project_id e field_name
     
     if (typeof text !== 'string') {
       return new Response(
@@ -44,14 +47,45 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-
-    console.log(`[AI Enhance Text] Enhancing text of length: ${text.length}`);
     
-    // Simular um pequeno atraso para parecer que a IA está trabalhando
+    if (!project_id || !field_name) {
+        console.warn("[AI Enhance Text] project_id or field_name missing in payload. Skipping n8n notification.");
+        // Não é um erro fatal, apenas logamos e continuamos
+    }
+
+    console.log(`[AI Enhance Text] Enhancing text for project ${project_id}, field: ${field_name}`);
+    
+    // 1. Aprimorar o texto
     await new Promise(resolve => setTimeout(resolve, 1500)); 
-    
     const enhancedText = enhanceText(text);
+    
+    // 2. Notificar o webhook do n8n (se os dados estiverem presentes)
+    if (project_id && field_name) {
+        const n8nPayload = {
+            project_id: project_id,
+            field_name: field_name,
+            action: "ai_enhancement_used",
+            original_text_length: text.length,
+            enhanced_text_length: enhancedText.length,
+        };
+        
+        console.log("[AI Enhance Text] Sending notification to n8n:", JSON.stringify(n8nPayload));
 
+        const n8nResponse = await fetch(N8N_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(n8nPayload),
+        });
+
+        if (!n8nResponse.ok) {
+            const n8nErrorText = await n8nResponse.text();
+            console.error(`[AI Enhance Text] N8N Webhook failed: Status ${n8nResponse.status}. Response: ${n8nErrorText}`);
+        } else {
+            console.log(`[AI Enhance Text] N8N Webhook successful: Status ${n8nResponse.status}`);
+        }
+    }
+
+    // 3. Retornar o texto aprimorado para o cliente
     return new Response(
       JSON.stringify({ enhanced_text: enhancedText }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },

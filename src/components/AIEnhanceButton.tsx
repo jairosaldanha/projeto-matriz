@@ -8,9 +8,11 @@ interface AIEnhanceButtonProps {
   currentText: string;
   onEnhance: (enhancedText: string) => void;
   disabled: boolean;
+  projectId: string | null; // Novo: ID do projeto
+  fieldName: string; // Novo: Nome do campo (ex: 'metodologia')
 }
 
-const AIEnhanceButton: React.FC<AIEnhanceButtonProps> = ({ currentText, onEnhance, disabled }) => {
+const AIEnhanceButton: React.FC<AIEnhanceButtonProps> = ({ currentText, onEnhance, disabled, projectId, fieldName }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
 
   const handleEnhance = useCallback(async () => {
@@ -20,13 +22,22 @@ const AIEnhanceButton: React.FC<AIEnhanceButtonProps> = ({ currentText, onEnhanc
       showError("Por favor, insira algum texto antes de aprimorar.");
       return;
     }
+    
+    if (!projectId) {
+        showError("Salve o rascunho do projeto antes de usar o aprimoramento de IA.");
+        return;
+    }
 
     setIsEnhancing(true);
     const toastId = showLoading("Aprimorando texto com IA...");
 
     try {
       const { data, error } = await supabase.functions.invoke('ai-enhance-text', {
-        body: { text: currentText },
+        body: { 
+            text: currentText,
+            project_id: projectId, // Enviando o ID do projeto
+            field_name: fieldName, // Enviando o nome do campo
+        },
       });
 
       if (error) {
@@ -49,7 +60,7 @@ const AIEnhanceButton: React.FC<AIEnhanceButtonProps> = ({ currentText, onEnhanc
       dismissToast(toastId);
       setIsEnhancing(false);
     }
-  }, [currentText, onEnhance, disabled, isEnhancing]);
+  }, [currentText, onEnhance, disabled, isEnhancing, projectId, fieldName]);
 
   return (
     <Button
@@ -57,7 +68,7 @@ const AIEnhanceButton: React.FC<AIEnhanceButtonProps> = ({ currentText, onEnhanc
       variant="outline"
       size="sm"
       onClick={handleEnhance}
-      disabled={isEnhancing || disabled}
+      disabled={isEnhancing || disabled || !projectId}
       className="h-8 px-3 text-xs"
     >
       {isEnhancing ? (
