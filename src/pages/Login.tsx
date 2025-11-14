@@ -25,7 +25,7 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl text-center">App Projeto Matriz</CardTitle>
+          <CardTitle className="text-2xl text-center">Projeto Matriz</CardTitle>
         </CardHeader>
         <CardContent>
           <Auth
