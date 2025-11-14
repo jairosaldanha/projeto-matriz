@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import React, { useState, useEffect, useCallback } from "react";
 import ProjectAttachments from "./ProjectAttachments";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, UseFormSetValue } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Loader2 } from "lucide-react";
 import { useSession } from "@/components/SessionContextProvider";
 import { useNavigate, useParams } from "react-router-dom";
+import AIEnhanceButton from "./AIEnhanceButton"; // Importando o novo componente
 
 // 1. Definindo o Schema Zod para o formulário (usado apenas na submissão final)
 const projectSchema = z.object({
@@ -80,11 +81,29 @@ interface FormFieldProps {
   isTextArea?: boolean;
   control: any;
   error: string | undefined;
+  setValue: UseFormSetValue<ProjectFormData>; // Adicionado para atualizar o valor
+  isSubmitting: boolean; // Adicionado para desabilitar o botão de IA durante a submissão
 }
 
-const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextArea = true, control, error }) => (
+const FormField: React.FC<FormFieldProps> = ({ name, label, placeholder, isTextArea = true, control, error, setValue, isSubmitting }) => (
   <div className="space-y-2">
-    <Label htmlFor={name}>{label}</Label>
+    <div className="flex justify-between items-center">
+      <Label htmlFor={name}>{label}</Label>
+      {/* O botão de IA só aparece para campos de texto longo (Textarea) */}
+      {isTextArea && (
+        <Controller
+          name={name}
+          control={control}
+          render={({ field }) => (
+            <AIEnhanceButton
+              currentText={field.value || ""}
+              onEnhance={(enhancedText) => setValue(name, enhancedText, { shouldDirty: true })}
+              disabled={isSubmitting}
+            />
+          )}
+        />
+      )}
+    </div>
     <Controller
       name={name}
       control={control}
@@ -120,7 +139,7 @@ const ProjectForm = () => {
   const [isProjectLoading, setIsProjectLoading] = useState(!!urlProjectId);
   const userId = session?.user?.id || null;
   
-  const { control, handleSubmit, formState: { errors, isSubmitting }, reset, getValues } = useForm<ProjectFormData>({
+  const { control, handleSubmit, formState: { errors, isSubmitting }, reset, getValues, setValue } = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
       contextualizacao: "",
@@ -417,6 +436,8 @@ const ProjectForm = () => {
               placeholder="Descreva o contexto e os benefícios esperados do projeto."
               control={control}
               error={errors.contextualizacao?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             
             <div className="space-y-4">
@@ -427,6 +448,8 @@ const ProjectForm = () => {
                 placeholder="Defina o objetivo geral do projeto."
                 control={control}
                 error={errors.objetivo_geral?.message}
+                setValue={setValue}
+                isSubmitting={isSubmitting}
               />
               <FormField
                 name="objetivos_especificos"
@@ -434,6 +457,8 @@ const ProjectForm = () => {
                 placeholder="Liste os objetivos específicos do projeto."
                 control={control}
                 error={errors.objetivos_especificos?.message}
+                setValue={setValue}
+                isSubmitting={isSubmitting}
               />
             </div>
 
@@ -443,6 +468,8 @@ const ProjectForm = () => {
               placeholder="Apresente a justificativa para a realização deste projeto."
               control={control}
               error={errors.justificativa?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="estagio_atual"
@@ -450,6 +477,8 @@ const ProjectForm = () => {
               placeholder="Descreva o estágio atual de desenvolvimento (ex: TRL)."
               control={control}
               error={errors.estagio_atual?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
           </CardContent>
         </Card>
@@ -466,6 +495,8 @@ const ProjectForm = () => {
               placeholder="Apresente a fundamentação teórica que suporta o projeto."
               control={control}
               error={errors.fundamentacao_teorica?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="metodologia"
@@ -473,6 +504,8 @@ const ProjectForm = () => {
               placeholder="Descreva a metodologia a ser empregada."
               control={control}
               error={errors.metodologia?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="descricao_atividades"
@@ -480,6 +513,8 @@ const ProjectForm = () => {
               placeholder="Descreva as atividades."
               control={control}
               error={errors.descricao_atividades?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="entregas_cronograma"
@@ -487,6 +522,8 @@ const ProjectForm = () => {
               placeholder="Descreva as entregas e o cronograma físico."
               control={control}
               error={errors.entregas_cronograma?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
           </CardContent>
         </Card>
@@ -503,6 +540,8 @@ const ProjectForm = () => {
               placeholder="Descreva o histórico da empresa."
               control={control}
               error={errors.historico_empresa?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="informacoes_administrativas"
@@ -510,6 +549,8 @@ const ProjectForm = () => {
               placeholder="Detalhe a estrutura administrativa e organizacional."
               control={control}
               error={errors.informacoes_administrativas?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="informacoes_comerciais"
@@ -517,6 +558,8 @@ const ProjectForm = () => {
               placeholder="Descreva as informações comerciais."
               control={control}
               error={errors.informacoes_comerciais?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="infraestrutura_pdi"
@@ -524,6 +567,8 @@ const ProjectForm = () => {
               placeholder="Descreva a infraestrutura disponível e as atividades de PD&I realizadas."
               control={control}
               error={errors.infraestrutura_pdi?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="acervo_pi"
@@ -531,6 +576,8 @@ const ProjectForm = () => {
               placeholder="Descreva o acervo de PI."
               control={control}
               error={errors.acervo_pi?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="patentes_terceiros"
@@ -538,6 +585,8 @@ const ProjectForm = () => {
               placeholder="Liste patentes ou ativos de terceiros relevantes."
               control={control}
               error={errors.patentes_terceiros?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="novos_produtos"
@@ -545,6 +594,8 @@ const ProjectForm = () => {
               placeholder="Descreva os novos produtos/processos."
               control={control}
               error={errors.novos_produtos?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="principais_competidores"
@@ -552,6 +603,8 @@ const ProjectForm = () => {
               placeholder="Liste e descreva os principais competidores."
               control={control}
               error={errors.principais_competidores?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="contrapartida_fundos"
@@ -559,6 +612,8 @@ const ProjectForm = () => {
               placeholder="Descreva a contrapartida e a busca por outros fundos."
               control={control}
               error={errors.contrapartida_fundos?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
           </CardContent>
         </Card>
@@ -576,6 +631,8 @@ const ProjectForm = () => {
               isTextArea={false}
               control={control}
               error={errors.responsavel_legal?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="coordenador_tecnico"
@@ -584,6 +641,8 @@ const ProjectForm = () => {
               isTextArea={false}
               control={control}
               error={errors.coordenador_tecnico?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="equipe_trabalho"
@@ -591,6 +650,8 @@ const ProjectForm = () => {
               placeholder="Descreva a equipe de trabalho."
               control={control}
               error={errors.equipe_trabalho?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
           </CardContent>
         </Card>
@@ -610,6 +671,8 @@ const ProjectForm = () => {
               placeholder="Liste os 3 principais problemas que seu projeto resolve."
               control={control}
               error={errors.lc_problema?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="lc_solucao"
@@ -617,6 +680,8 @@ const ProjectForm = () => {
               placeholder="Descreva as 3 principais funcionalidades da sua solução."
               control={control}
               error={errors.lc_solucao?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="lc_metricas_chave"
@@ -624,6 +689,8 @@ const ProjectForm = () => {
               placeholder="Quais métricas você usará para medir o sucesso?"
               control={control}
               error={errors.lc_metricas_chave?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="lc_proposta_valor"
@@ -631,6 +698,8 @@ const ProjectForm = () => {
               placeholder="Uma única frase clara e convincente que explica por que você é diferente e vale a pena."
               control={control}
               error={errors.lc_proposta_valor?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="lc_vantagem_injusta"
@@ -638,6 +707,8 @@ const ProjectForm = () => {
               placeholder="Algo que não pode ser facilmente copiado ou comprado."
               control={control}
               error={errors.lc_vantagem_injusta?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="lc_canais"
@@ -645,6 +716,8 @@ const ProjectForm = () => {
               placeholder="Caminhos para alcançar seus clientes (Ex: Web, Mobile, Parceiros)."
               control={control}
               error={errors.lc_canais?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="lc_segmentos_clientes"
@@ -652,6 +725,8 @@ const ProjectForm = () => {
               placeholder="Quem são seus clientes-alvo e usuários iniciais?"
               control={control}
               error={errors.lc_segmentos_clientes?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="lc_estrutura_custos"
@@ -659,6 +734,8 @@ const ProjectForm = () => {
               placeholder="Liste os custos fixos e variáveis mais importantes."
               control={control}
               error={errors.lc_estrutura_custos?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="lc_fontes_receita"
@@ -666,6 +743,8 @@ const ProjectForm = () => {
               placeholder="Como você fará dinheiro? (Ex: Assinatura, Venda Direta)."
               control={control}
               error={errors.lc_fontes_receita?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
           </CardContent>
         </Card>
@@ -682,6 +761,8 @@ const ProjectForm = () => {
               placeholder="Detalhe o potencial de mercado, público-alvo e estratégia de comercialização."
               control={control}
               error={errors.potencial_comercial?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
           </CardContent>
         </Card>
@@ -698,6 +779,8 @@ const ProjectForm = () => {
               placeholder="Descreva a proposta de orçamento. (Em um formulário real, isso seria uma tabela, mas aqui usamos um campo de texto para a descrição geral.)"
               control={control}
               error={errors.proposta_orcamento?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="quadro_riscos"
@@ -705,6 +788,8 @@ const ProjectForm = () => {
               placeholder="Descreva os principais riscos do projeto e as estratégias de mitigação."
               control={control}
               error={errors.quadro_riscos?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <Separator />
             <Label className="text-base font-semibold block">Justificativas de:</Label>
@@ -714,6 +799,8 @@ const ProjectForm = () => {
               placeholder="Justifique a necessidade de equipamentos e materiais permanentes."
               control={control}
               error={errors.justificativa_equipamentos?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
             <FormField
               name="justificativa_servicos"
@@ -721,6 +808,8 @@ const ProjectForm = () => {
               placeholder="Justifique a necessidade de serviços de terceiros e consultorias."
               control={control}
               error={errors.justificativa_servicos?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
           </CardContent>
         </Card>
@@ -737,6 +826,8 @@ const ProjectForm = () => {
               placeholder="Liste todas as referências utilizadas no projeto."
               control={control}
               error={errors.referencias?.message}
+              setValue={setValue}
+              isSubmitting={isSubmitting}
             />
           </CardContent>
         </Card>
