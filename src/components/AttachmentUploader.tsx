@@ -4,7 +4,7 @@ import { Upload, FileText, Trash2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast";
 import { ControllerRenderProps, FieldValues } from "react-hook-form";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeFileName } from "@/lib/utils"; // Importando sanitizeFileName
 
 // Nome do bucket de arquivos
 const ATTACHMENTS_BUCKET = "formulario_arquivos";
@@ -145,9 +145,13 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
     try {
       for (let i = 0; i < filesToProcess.length; i++) {
         const file = filesToProcess[i];
+        
+        // Sanitiza o nome do arquivo para o caminho de armazenamento
+        const sanitizedFileName = sanitizeFileName(file.name);
+
         // O caminho de armazenamento deve ser único e isolado por usuário/projeto
-        // Formato: [user_id]/[project_id]/[timestamp]-[file_name]
-        const storagePath = `${userId}/${currentProjectId}/${Date.now()}-${file.name}`;
+        // Formato: [user_id]/[project_id]/[timestamp]-[sanitized_file_name]
+        const storagePath = `${userId}/${currentProjectId}/${Date.now()}-${sanitizedFileName}`;
 
         // 2. Upload para o Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
@@ -167,8 +171,8 @@ const AttachmentUploader: React.FC<AttachmentUploaderProps> = ({ projectId, user
 
         // 3. Preparar registro para o banco de dados
         newAttachmentRecords.push({
-          file_name: file.name,
-          storage_path: uploadData.path,
+          file_name: file.name, // Mantemos o nome original no DB
+          storage_path: uploadData.path, // Usamos o caminho sanitizado
           mime_type: file.type,
           size_bytes: file.size,
         });
